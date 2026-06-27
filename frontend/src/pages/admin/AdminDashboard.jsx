@@ -84,13 +84,13 @@ export default function AdminDashboard() {
     image_file: null,
   })
 
-  const [bulkForm, setBulkForm] = useState({
-    organization_id: '',
-    event_id: '',
-    category_id: '',
-    level: '100',
-    names: '',
-  })
+const [bulkForm, setBulkForm] = useState({
+  organization_id: '',
+  event_id: '',
+  category_id: '',
+  level: '',
+  names: '',
+})
 
   const [assignForm, setAssignForm] = useState({
     event_id: '',
@@ -555,15 +555,15 @@ export default function AdminDashboard() {
     setSaving(true)
 
     try {
-      const nomineePayload = names.map(name => ({
-        organization_id: bulkForm.organization_id,
-        full_name: name,
-        nickname: null,
-        level: bulkForm.level,
-        bio: null,
-        image_url: null,
-        is_active: true,
-      }))
+const nomineePayload = names.map(name => ({
+  organization_id: bulkForm.organization_id,
+  full_name: name,
+  nickname: null,
+  level: bulkForm.level || null,
+  bio: null,
+  image_url: null,
+  is_active: true,
+}))
 
       const { data: createdNominees, error } = await supabase
         .from('nominees')
@@ -596,13 +596,13 @@ export default function AdminDashboard() {
         toast.success(`${createdNominees.length} nominees created`)
       }
 
-      setBulkForm({
-        organization_id: organizations[0]?.id || '',
-        event_id: events[0]?.id || '',
-        category_id: '',
-        level: '100',
-        names: '',
-      })
+setBulkForm({
+  organization_id: organizations[0]?.id || '',
+  event_id: events[0]?.id || '',
+  category_id: '',
+  level: '',
+  names: '',
+})
 
       loadAll()
     } catch (error) {
@@ -939,7 +939,14 @@ function NomineesTab({ nomineeForm, setNomineeForm, bulkForm, setBulkForm, organ
             <Select label="Organization" value={bulkForm.organization_id} onChange={v => setBulkForm({ ...bulkForm, organization_id: v })} options={organizations.map(o => [o.id, o.name])} />
             <Select label="Event" value={bulkForm.event_id} onChange={v => setBulkForm({ ...bulkForm, event_id: v, category_id: '' })} options={events.map(e => [e.id, e.name])} />
             <Select label="Assign to Category" value={bulkForm.category_id} onChange={v => setBulkForm({ ...bulkForm, category_id: v })} options={categories.filter(c => c.event_id === bulkForm.event_id).map(c => [c.id, c.name])} />
-            <Select label="Level" value={bulkForm.level} onChange={v => setBulkForm({ ...bulkForm, level: v })} options={['100', '200', '300', '400', '500'].map(x => [x, x])} />
+           
+<Select
+  label="Level Optional"
+  value={bulkForm.level}
+  onChange={v => setBulkForm({ ...bulkForm, level: v })}
+  options={['100', '200', '300', '400', '500'].map(x => [x, x])}
+/>
+
             <Textarea label="Names" value={bulkForm.names} onChange={v => setBulkForm({ ...bulkForm, names: v })} placeholder={'One per line, comma, or semicolon separated\nAJ Classic\nMary Gold\nJohn Winner'} />
             <Submit disabled={saving}>Bulk Create Nominees</Submit>
           </form>
