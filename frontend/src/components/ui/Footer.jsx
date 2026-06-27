@@ -47,7 +47,7 @@ export default function Footer() {
 
         <div className="mt-10 pt-6 border-t border-slate-200 dark:border-white/10 flex flex-col sm:flex-row justify-between gap-3 text-sm text-slate-500 dark:text-slate-400">
           <p>© {new Date().getFullYear()} VoteWave. All rights reserved.</p>
-          <p>Built for secure and transparent school voting.</p>
+          <p>Built for secure and transparent school voting. By <a href="https://wa.me/+2348104535145>BMC Pinnacle</a> x <a href="https://wa.me/+23488>YGril</a></p>
         </div>
       </div>
     </footer>
