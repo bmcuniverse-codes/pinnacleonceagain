@@ -1,0 +1,15 @@
+{
+  "name": "votewave-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A premium mobile-first paid voting platform powered by React, Supabase and Paystack.",
+  "scripts": {
+    "dev": "cd frontend && npm run dev",
+    "install:all": "cd frontend && npm install",
+    "build": "cd frontend && npm run build",
+    "preview": "cd frontend && npm run preview"
+  },
+  "keywords": ["voting", "supabase", "paystack", "react", "events"],
+  "author": "VoteWave",
+  "license": "MIT"
+}
