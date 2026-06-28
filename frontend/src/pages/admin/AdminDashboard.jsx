@@ -18,6 +18,7 @@ import {
   Building2,
   Trash2,
   RotateCcw,
+  Crown,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { currency, slugify } from '../../lib/helpers'
@@ -32,6 +33,7 @@ const tabs = [
   ['categories', Grid3X3, 'Categories'],
   ['nominees', Users, 'Nominees'],
   ['nominations', Vote, 'Nominations'],
+  ['leaders', Crown, 'Leaders'],
   ['payments', CreditCard, 'Payments'],
 ]
 
@@ -209,6 +211,30 @@ const [bulkForm, setBulkForm] = useState({
     })
   }, [categories, nominations, events, organizations])
 
+const categoryLeaders = useMemo(() => {
+  return categories.map(category => {
+    const categoryNominations = nominations
+      .filter(item => item.category_id === category.id)
+      .sort(
+        (a, b) =>
+          Number(b.total_votes || b.public_score || 0) -
+          Number(a.total_votes || a.public_score || 0)
+      )
+
+    const leader = categoryNominations[0] || null
+    const event = events.find(item => item.id === category.event_id)
+
+    return {
+      category,
+      event,
+      leader,
+      total_nominees: categoryNominations.length,
+    }
+  })
+}, [categories, nominations, events])
+
+
+
   const organizationStats = useMemo(() => {
     return organizations.map(org => {
       const orgEvents = events.filter(e => e.organization_id === org.id)
@@ -385,26 +411,67 @@ const [bulkForm, setBulkForm] = useState({
     }
   }
 
-  async function resetEventData(event) {
-    const yes = window.confirm(`Reset voting/payment data for "${event.name}"?\n\nThis will delete vote transactions for this event and reset nomination vote counts to zero. Categories and nominees will remain.`)
-    if (!yes) return
-    setSaving(true)
+async function resetEventData(event) {
+  const yes = window.confirm(
+    `Reset all voting data for "${event.name}"?\n\nThis will clear all payments, revenue, vote records and reset nominee votes for this event to zero.\n\nCategories and nominees will remain.`
+  )
 
-    try {
-      const txDelete = await supabase.from('vote_transactions').delete().eq('event_id', event.id)
-      if (txDelete.error) throw txDelete.error
+  if (!yes) return
 
-      const voteReset = await supabase.from('nominations').update({ total_votes: 0 }).eq('event_id', event.id)
-      if (voteReset.error) throw voteReset.error
+  setSaving(true)
 
-      toast.success('Event data reset')
-      loadAll()
-    } catch (error) {
-      toast.error(error.message || 'Could not reset event data')
-    } finally {
-      setSaving(false)
+  try {
+    const { data: eventNominations, error: nominationFetchError } = await supabase
+      .from('nominations')
+      .select('id')
+      .eq('event_id', event.id)
+
+    if (nominationFetchError) throw nominationFetchError
+
+    const nominationIds = (eventNominations || []).map(item => item.id)
+
+    const deleteByEvent = await supabase
+      .from('vote_transactions')
+      .delete()
+      .eq('event_id', event.id)
+
+    if (deleteByEvent.error) throw deleteByEvent.error
+
+    if (nominationIds.length > 0) {
+      const deleteByNomination = await supabase
+        .from('vote_transactions')
+        .delete()
+        .in('nomination_id', nominationIds)
+
+      if (deleteByNomination.error) throw deleteByNomination.error
     }
+
+    const resetVotes = await supabase
+      .from('nominations')
+      .update({ total_votes: 0 })
+      .eq('event_id', event.id)
+
+    if (resetVotes.error) throw resetVotes.error
+
+    setTransactions(prev => prev.filter(tx => tx.event_id !== event.id))
+    setNominations(prev =>
+      prev.map(item =>
+        item.event_id === event.id
+          ? { ...item, total_votes: 0, public_score: 0 }
+          : item
+      )
+    )
+
+    toast.success('Event payments, revenue and votes have been reset')
+
+    await loadAll()
+  } catch (error) {
+    toast.error(error.message || 'Could not reset event data')
+  } finally {
+    setSaving(false)
   }
+}
+
 
   async function deleteEvent(event) {
     const yes = window.confirm(`Delete "${event.name}"?\n\nThis will delete event transactions, nominations and categories. Nominees themselves will remain.`)
@@ -840,6 +907,76 @@ const [bulkForm, setBulkForm] = useState({
           {active === 'categories' && <CategoriesTab categoryForm={categoryForm} setCategoryForm={setCategoryForm} organizations={organizations} events={events} categoryStats={categoryStats} createCategory={createCategory} setEditingCategory={setEditingCategory} deleteCategory={deleteCategory} saving={saving} />}
           {active === 'nominees' && <NomineesTab nomineeForm={nomineeForm} setNomineeForm={setNomineeForm} bulkForm={bulkForm} setBulkForm={setBulkForm} organizations={organizations} events={events} categories={categories} nominees={nominees} createNominee={createNominee} createBulkNominees={createBulkNominees} setEditingNominee={setEditingNominee} deleteNominee={deleteNominee} saving={saving} />}
           {active === 'nominations' && <NominationsTab assignForm={assignForm} setAssignForm={setAssignForm} organizations={organizations} events={events} categories={categories} nominees={nominees} nominations={nominations} assignNominee={assignNominee} copyLink={copyLink} saving={saving} />}
+          {active === 'leaders' && (
+  <section className="space-y-6">
+    <Panel title="First Position in Every Category">
+      <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+        {categoryLeaders.length === 0 ? (
+          <p className="text-slate-500 font-bold">
+            No categories available yet.
+          </p>
+        ) : (
+          categoryLeaders.map(({ category, event, leader, total_nominees }) => (
+            <div
+              key={category.id}
+              className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-green-700">
+                    {event?.name || 'Event'}
+                  </p>
+
+                  <h3 className="mt-2 text-xl font-black text-slate-950 truncate">
+                    {category.name}
+                  </h3>
+
+                  <p className="mt-1 text-sm font-bold text-slate-500">
+                    {total_nominees} nominees
+                  </p>
+                </div>
+
+                <div className="h-12 w-12 rounded-2xl bg-yellow-100 text-yellow-700 grid place-items-center shrink-0">
+                  <Crown size={24} />
+                </div>
+              </div>
+
+              {leader ? (
+                <div className="mt-5 flex items-center gap-4 rounded-2xl bg-white border border-slate-200 p-4">
+                  <PreviewImage src={leader.image_url} icon={Users} circle />
+
+                  <div className="min-w-0">
+                    <p className="text-sm font-black text-blue-800">
+                      Current Leader
+                    </p>
+
+                    <h4 className="font-black text-slate-950 truncate">
+                      {leader.full_name}
+                    </h4>
+
+                    <p className="text-sm text-slate-500 truncate">
+                      {leader.nickname || 'No nickname'}
+                    </p>
+
+                    <p className="mt-1 text-xs font-black text-green-700">
+                      {Number(leader.total_votes || leader.public_score || 0)} votes / score
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-5 rounded-2xl bg-white border border-slate-200 p-4 text-center">
+                  <p className="font-black text-slate-700">
+                    No nominee in this category yet
+                  </p>
+                </div>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+    </Panel>
+  </section>
+)}
           {active === 'payments' && <PaymentsTab transactions={transactions} />}
         </main>
       </div>
