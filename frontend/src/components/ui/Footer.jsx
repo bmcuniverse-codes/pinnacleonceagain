@@ -11,10 +11,12 @@ export default function Footer() {
               <div className="h-12 w-12 rounded-2xl bg-blue-800 grid place-items-center text-yellow-300 font-black text-xl shadow-lg">
                 V
               </div>
+
               <div>
                 <h2 className="text-2xl font-black text-blue-800 dark:text-yellow-300">
                   VoteWave
                 </h2>
+
                 <p className="text-xs font-bold text-green-700 dark:text-green-300">
                   LASUSTECH Voting Platform
                 </p>
@@ -27,27 +29,83 @@ export default function Footer() {
           </div>
 
           <div>
-            <h3 className="font-black text-slate-950 dark:text-white">Navigate</h3>
+            <h3 className="font-black text-slate-950 dark:text-white">
+              Navigate
+            </h3>
+
             <div className="mt-4 space-y-3 text-sm font-bold text-slate-600 dark:text-slate-300">
-              <Link className="block hover:text-blue-800 dark:hover:text-yellow-300" to="/events">Events</Link>
-              <Link className="block hover:text-blue-800 dark:hover:text-yellow-300" to="/leaderboard">Leaderboard</Link>
-              <Link className="block hover:text-blue-800 dark:hover:text-yellow-300" to="/admin/login">Admin Login</Link>
+              <Link
+                className="block hover:text-blue-800 dark:hover:text-yellow-300"
+                to="/events"
+              >
+                Events
+              </Link>
+
+              <Link
+                className="block hover:text-blue-800 dark:hover:text-yellow-300"
+                to="/leaderboard"
+              >
+                Leaderboard
+              </Link>
+
+              <Link
+                className="block hover:text-blue-800 dark:hover:text-yellow-300"
+                to="/admin/login"
+              >
+                Admin Login
+              </Link>
             </div>
           </div>
 
           <div>
-            <h3 className="font-black text-slate-950 dark:text-white">Trust</h3>
+            <h3 className="font-black text-slate-950 dark:text-white">
+              Trust
+            </h3>
+
             <div className="mt-4 space-y-3 text-sm font-bold text-slate-600 dark:text-slate-300">
-              <p className="flex items-center gap-2"><ShieldCheck size={17} /> Verified payments</p>
-              <p className="flex items-center gap-2"><Trophy size={17} /> Category awards</p>
-              <p className="flex items-center gap-2"><BarChart3 size={17} /> Private vote totals</p>
+              <p className="flex items-center gap-2">
+                <ShieldCheck size={17} />
+                Verified payments
+              </p>
+
+              <p className="flex items-center gap-2">
+                <Trophy size={17} />
+                Category awards
+              </p>
+
+              <p className="flex items-center gap-2">
+                <BarChart3 size={17} />
+                Private vote totals
+              </p>
             </div>
           </div>
         </div>
 
         <div className="mt-10 pt-6 border-t border-slate-200 dark:border-white/10 flex flex-col sm:flex-row justify-between gap-3 text-sm text-slate-500 dark:text-slate-400">
-          <p>© {new Date().getFullYear()} VoteWave. All rights reserved.</p>
-          <p>Built for secure and transparent school voting. By <a href="https://wa.me/+2348104535145>BMC Pinnacle</a> x <a href="https://wa.me/+23488>YGril</a></p>
+          <p>
+            © {new Date().getFullYear()} VoteWave. All rights reserved.
+          </p>
+
+          <p>
+            Built for secure and transparent school voting. By{' '}
+            <a
+              href="https://wa.me/2348104535145"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-black text-blue-800 hover:text-green-700 dark:text-yellow-300 dark:hover:text-green-300"
+            >
+              BMC Pinnacle
+            </a>{' '}
+            x{' '}
+            <a
+              href="https://wa.me/234XXXXXXXXXX"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-black text-blue-800 hover:text-green-700 dark:text-yellow-300 dark:hover:text-green-300"
+            >
+              YGril
+            </a>
+          </p>
         </div>
       </div>
     </footer>
