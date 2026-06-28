@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import PageHeader from '../components/ui/PageHeader'
 import StatCard from '../components/ui/StatCard'
 import EmptyState from '../components/ui/EmptyState'
+import CategoryLeaderboard from '../components/ui/CategoryLeaderboard'
 import NomineeCard from '../components/ui/NomineeCard'
 
 async function getNominees(eventSlug, categorySlug) {
@@ -85,6 +86,14 @@ export default function Nominees() {
           <NomineeCard key={n.id} nominee={n} />
         ))}
       </section>
+
+      {data?.cat?.id && (
+  <CategoryLeaderboard
+    categoryId={data.cat.id}
+    categoryName={data.cat.name}
+  />
+)}
+      
     </div>
   )
 }
