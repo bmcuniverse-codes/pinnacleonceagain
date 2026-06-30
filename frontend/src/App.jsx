@@ -23,8 +23,11 @@ export default function App() {
       <Route path="/leaderboard" element={<Leaderboard />} />
       <Route path="/success" element={<Success />} />
     </Route>
+
     <Route path="/admin/login" element={<AdminLogin />} />
     <Route path="/admin" element={<AdminDashboard />} />
+
+    <Route path="/committee" element={<CommitteeLogin />} />
     <Route path="/committee/login" element={<CommitteeLogin />} />
     <Route path="/committee/dashboard" element={<CommitteeDashboard />} />
   </Routes>
