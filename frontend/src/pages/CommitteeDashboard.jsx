@@ -28,20 +28,27 @@ function formatDate(value) {
   }
 }
 
+function formatNumber(value) {
+  return Number(value || 0).toLocaleString('en-NG')
+}
+
+function formatCurrency(value) {
+  return `₦${Number(value || 0).toLocaleString('en-NG')}`
+}
+
 async function getCommitteeSummary() {
   const { data, error } = await supabase
-    .from('committee_summary')
+    .from('admin_payment_totals')
     .select('*')
-    .eq('id', 1)
-    .maybeSingle()
+    .single()
 
   if (error) throw error
 
-  return data || {
-    total_votes_display: 'Not updated yet',
-    total_revenue_display: 'Not updated yet',
-    message: 'Voting is currently ongoing.',
-    last_updated: null,
+  return {
+    total_votes_display: formatNumber(data?.total_votes),
+    total_revenue_display: formatCurrency(data?.total_revenue),
+    message: 'Results are encrypted and secured.',
+    last_updated: new Date().toISOString(),
   }
 }
 
@@ -91,7 +98,7 @@ export default function CommitteeDashboard() {
   } = useQuery({
     queryKey: ['committee-summary'],
     queryFn: getCommitteeSummary,
-    refetchInterval: 30000,
+    refetchInterval: 10000,
     refetchOnWindowFocus: true,
   })
 
