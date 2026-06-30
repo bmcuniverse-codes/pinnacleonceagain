@@ -9,6 +9,8 @@ import Leaderboard from './pages/Leaderboard'
 import Success from './pages/Success'
 import AdminLogin from './pages/admin/AdminLogin'
 import AdminDashboard from './pages/admin/AdminDashboard'
+import CommitteeLogin from './pages/CommitteeLogin'
+import CommitteeDashboard from './pages/CommitteeDashboard'
 
 export default function App() {
   return <Routes>
@@ -23,5 +25,7 @@ export default function App() {
     </Route>
     <Route path="/admin/login" element={<AdminLogin />} />
     <Route path="/admin" element={<AdminDashboard />} />
+    <Route path="/committee/login" element={<CommitteeLogin />} />
+    <Route path="/committee/dashboard" element={<CommitteeDashboard />} />
   </Routes>
 }
