@@ -83,7 +83,7 @@ export default function CountdownTimer({ event, compact = false }) {
 
     return {
       label: 'Voting is currently open',
-      tone: 'green',
+      tone: 'red',
       target: null,
     }
   }, [event, now])
