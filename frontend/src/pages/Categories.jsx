@@ -4,13 +4,14 @@ import { Grid3X3, Trophy } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import PageHeader from '../components/ui/PageHeader'
 import StatCard from '../components/ui/StatCard'
+import CountdownTimer, { getVotingStatus } from '../components/ui/CountdownTimer'
 import EmptyState from '../components/ui/EmptyState'
 import CategoryCard from '../components/ui/CategoryCard'
 
 async function getCategories(eventSlug) {
   const { data: event, error: eventError } = await supabase
     .from('events')
-    .select('id,name,slug,description,vote_price')
+    .select('id,name,slug,description,vote_price,voting_open,voting_starts_at,voting_ends_at')
     .eq('slug', eventSlug)
     .single()
 
@@ -44,11 +45,15 @@ export default function Categories() {
         description="Select a category, view the nominees and support your favourite contestant with verified voting."
       >
         <div className="grid sm:grid-cols-3 gap-4">
-          <StatCard icon={Trophy} label="Event Status" value="Active" tone="green" />
+          <StatCard icon={Trophy} label="Event Status" value={getVotingStatus(data?.event)} tone="green" />
           <StatCard icon={Grid3X3} label="Categories" value={data?.categories?.length || 0} tone="blue" />
           <StatCard icon={Trophy} label="Per Vote" value={`₦${Number(data?.event?.vote_price || 50).toLocaleString()}`} tone="gold" />
         </div>
       </PageHeader>
+
+      {data?.event && (
+        <CountdownTimer event={data.event} />
+      )}
 
       {isLoading && (
         <p className="font-semibold text-slate-700 dark:text-slate-200">

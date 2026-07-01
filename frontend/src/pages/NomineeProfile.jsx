@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { ArrowLeft, CreditCard, ShieldCheck, Trophy, UserRound, MessageCircle } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { currency } from '../lib/helpers'
+import CountdownTimer, { canVote, getVotingStatus } from '../components/ui/CountdownTimer'
 
 async function getNomination(slug) {
   const { data, error } = await supabase
@@ -14,7 +15,23 @@ async function getNomination(slug) {
     .single()
 
   if (error) throw error
-  return data
+
+  if (!data?.event_id) return data
+
+  const { data: event, error: eventError } = await supabase
+    .from('events')
+    .select('id,name,slug,voting_open,voting_starts_at,voting_ends_at')
+    .eq('id', data.event_id)
+    .single()
+
+  if (eventError) throw eventError
+
+  return {
+    ...data,
+    voting_open: event?.voting_open,
+    voting_starts_at: event?.voting_starts_at,
+    voting_ends_at: event?.voting_ends_at,
+  }
 }
 
 export default function NomineeProfile() {
@@ -26,11 +43,17 @@ export default function NomineeProfile() {
   const [supporterMessage, setSupporterMessage] = useState('')
   const [phone, setPhone] = useState('')
   const [isPaying, setIsPaying] = useState(false)
+  const [currentTime, setCurrentTime] = useState(Date.now())
 
   const { data: n, isLoading } = useQuery({
     queryKey: ['nomination', nominationSlug],
     queryFn: () => getNomination(nominationSlug),
   })
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(Date.now()), 1000)
+    return () => clearInterval(timer)
+  }, [])
 
   const votePrice = Number(n?.vote_price || 50)
 
@@ -41,8 +64,13 @@ export default function NomineeProfile() {
   }, [amount, votePrice])
 
   const validAmount = Number(amount) >= votePrice && Number(amount) % votePrice === 0
+  const votingIsAvailable = useMemo(() => canVote(n), [n, currentTime])
 
   async function pay() {
+    if (!votingIsAvailable) {
+      return toast.error('Voting is not currently open for this event')
+    }
+
     if (!validAmount) {
       return toast.error(`Amount must be at least ${currency(votePrice)} and a multiple of ${currency(votePrice)}`)
     }
@@ -143,7 +171,7 @@ export default function NomineeProfile() {
               <div className="rounded-2xl bg-green-50 dark:bg-green-400/10 border border-green-100 dark:border-green-400/20 p-4">
                 <p className="text-xs font-bold text-slate-500 dark:text-slate-300">Voting</p>
                 <p className="font-black text-green-700 dark:text-green-300">
-                  Open
+                  {getVotingStatus(n)}
                 </p>
               </div>
             </div>
@@ -167,6 +195,10 @@ export default function NomineeProfile() {
                 No email required. Enter the amount you want to vote with.
               </p>
             </div>
+          </div>
+
+          <div className="mt-6">
+            <CountdownTimer event={n} />
           </div>
 
           <div className="mt-7 space-y-5">
@@ -259,10 +291,10 @@ export default function NomineeProfile() {
 
             <button
               onClick={pay}
-              disabled={isPaying}
+              disabled={isPaying || !votingIsAvailable}
               className="w-full rounded-full bg-blue-800 px-6 py-4 font-black text-white shadow-lg hover:bg-blue-900 transition disabled:opacity-60"
             >
-              {isPaying ? 'Starting Payment...' : 'Pay & Vote Securely'}
+              {isPaying ? 'Starting Payment...' : votingIsAvailable ? 'Pay & Vote Securely' : 'Voting Not Available'}
             </button>
 
             <div className="flex items-center gap-2 rounded-2xl bg-green-50 dark:bg-green-400/10 border border-green-100 dark:border-green-400/20 p-4 text-green-700 dark:text-green-300">

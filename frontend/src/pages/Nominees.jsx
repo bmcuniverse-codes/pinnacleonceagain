@@ -4,6 +4,7 @@ import { Search, Trophy, Users } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import PageHeader from '../components/ui/PageHeader'
 import StatCard from '../components/ui/StatCard'
+import CountdownTimer, { getVotingStatus } from '../components/ui/CountdownTimer'
 import EmptyState from '../components/ui/EmptyState'
 import CategoryLeaderboard from '../components/ui/CategoryLeaderboard'
 import NomineeCard from '../components/ui/NomineeCard'
@@ -11,7 +12,7 @@ import NomineeCard from '../components/ui/NomineeCard'
 async function getNominees(eventSlug, categorySlug) {
   const { data: event, error: eventError } = await supabase
     .from('events')
-    .select('id,name,slug')
+    .select('id,name,slug,voting_open,voting_starts_at,voting_ends_at')
     .eq('slug', eventSlug)
     .single()
 
@@ -55,9 +56,13 @@ export default function Nominees() {
       >
         <div className="grid sm:grid-cols-2 gap-4">
           <StatCard icon={Users} label="Nominees" value={data?.nominations?.length || 0} tone="blue" />
-          <StatCard icon={Trophy} label="Voting Status" value="Open" tone="green" />
+          <StatCard icon={Trophy} label="Voting Status" value={getVotingStatus(data?.event)} tone="green" />
         </div>
       </PageHeader>
+
+      {data?.event && (
+        <CountdownTimer event={data.event} />
+      )}
 
       <div className="flex items-center gap-3 rounded-[1.5rem] bg-white dark:bg-white/10 border border-slate-200 dark:border-white/10 px-5 py-4 shadow-sm">
         <Search className="text-slate-400" size={20} />
