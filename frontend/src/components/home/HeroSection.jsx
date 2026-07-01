@@ -1,7 +1,29 @@
 import { Link } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { ArrowRight, ShieldCheck, Trophy, Sparkles } from 'lucide-react'
+import { supabase } from '../../lib/supabase'
+import CountdownTimer from '../ui/CountdownTimer'
+
+async function getFeaturedEventTimer() {
+  const { data, error } = await supabase
+    .from('events')
+    .select('id,name,slug,voting_open,voting_starts_at,voting_ends_at')
+    .eq('is_active', true)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) throw error
+  return data
+}
 
 export default function HeroSection() {
+  const { data: featuredEvent } = useQuery({
+    queryKey: ['home-featured-event-timer'],
+    queryFn: getFeaturedEventTimer,
+    refetchInterval: 30000,
+  })
+
   return (
     <section className="grid lg:grid-cols-2 gap-10 items-center min-h-[72vh]">
       <div className="space-y-7">
@@ -17,6 +39,10 @@ export default function HeroSection() {
         <p className="max-w-xl text-lg sm:text-xl leading-relaxed text-slate-600 dark:text-slate-300">
           Support your favourite nominees through secure paid voting. Every confirmed payment is recorded transparently and reflected on the public leaderboard.
         </p>
+
+        {featuredEvent && (
+          <CountdownTimer event={featuredEvent} compact />
+        )}
 
         <div className="flex flex-col sm:flex-row gap-3">
           <Link to="/events" className="inline-flex items-center justify-center gap-2 rounded-full bg-blue-800 px-7 py-4 font-black text-white shadow-lg hover:bg-blue-900 transition">
