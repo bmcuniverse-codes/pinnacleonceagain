@@ -75,6 +75,8 @@ export default function AdminDashboard() {
     name: '',
     description: '',
     vote_price: 50,
+    voting_starts_at: '',
+    voting_ends_at: '',
     cover_file: null,
   })
 
@@ -378,6 +380,8 @@ const categoryLeaders = useMemo(() => {
         slug: slugify(eventForm.name),
         description: eventForm.description || null,
         vote_price: Number(eventForm.vote_price || 50),
+        voting_starts_at: toSupabaseTimestamp(eventForm.voting_starts_at),
+        voting_ends_at: toSupabaseTimestamp(eventForm.voting_ends_at),
         cover_url: coverUrl,
         voting_open: true,
         is_active: true,
@@ -387,7 +391,7 @@ const categoryLeaders = useMemo(() => {
       if (error) throw error
 
       toast.success('Event created')
-      setEventForm({ organization_id: organizations[0]?.id || '', name: '', description: '', vote_price: 50, cover_file: null })
+      setEventForm({ organization_id: organizations[0]?.id || '', name: '', description: '', vote_price: 50, voting_starts_at: '', voting_ends_at: '', cover_file: null })
       loadAll()
     } catch (error) {
       toast.error(error.message || 'Could not create event')
@@ -414,6 +418,8 @@ const categoryLeaders = useMemo(() => {
         slug: slugify(editingEvent.name),
         description: editingEvent.description || null,
         vote_price: Number(editingEvent.vote_price || 50),
+        voting_starts_at: toSupabaseTimestamp(editingEvent.voting_starts_at),
+        voting_ends_at: toSupabaseTimestamp(editingEvent.voting_ends_at),
         cover_url: coverUrl,
         voting_open: editingEvent.voting_open,
         is_active: editingEvent.is_active,
@@ -1021,6 +1027,8 @@ async function resetEventData(event) {
             <Input label="Event Name" value={editingEvent.name} onChange={v => setEditingEvent({ ...editingEvent, name: v })} required />
             <Textarea label="Description" value={editingEvent.description || ''} onChange={v => setEditingEvent({ ...editingEvent, description: v })} />
             <Input label="Vote Price" type="number" value={editingEvent.vote_price || 50} onChange={v => setEditingEvent({ ...editingEvent, vote_price: v })} required />
+            <Input label="Voting Starts At" type="datetime-local" value={editingEvent.voting_starts_at || ''} onChange={v => setEditingEvent({ ...editingEvent, voting_starts_at: v })} />
+            <Input label="Voting Ends At" type="datetime-local" value={editingEvent.voting_ends_at || ''} onChange={v => setEditingEvent({ ...editingEvent, voting_ends_at: v })} />
             <FileInput label="Replace Cover Image" file={editingEvent.cover_file} onChange={file => setEditingEvent({ ...editingEvent, cover_file: file })} />
             <Toggle label="Voting Open" checked={editingEvent.voting_open} onChange={v => setEditingEvent({ ...editingEvent, voting_open: v })} />
             <Toggle label="Active" checked={editingEvent.is_active} onChange={v => setEditingEvent({ ...editingEvent, is_active: v })} />
@@ -1093,7 +1101,7 @@ function Overview({ stats, eventStats, setActive }) {
                 <p className="text-xs font-black text-green-700">{event.total_votes} votes • {currency(event.revenue)}</p>
               </div>
             </div>
-            <Badge>{event.voting_open ? 'Voting Open' : 'Closed'}</Badge>
+            <Badge>{getEventStatus(event)}</Badge>
           </>
         )} />
       </Panel>
@@ -1145,6 +1153,8 @@ function EventsTab({ eventForm, setEventForm, organizations, eventStats, createE
           <Input label="Event Name" value={eventForm.name} onChange={v => setEventForm({ ...eventForm, name: v })} required />
           <Textarea label="Description" value={eventForm.description} onChange={v => setEventForm({ ...eventForm, description: v })} />
           <Input label="Vote Price" type="number" value={eventForm.vote_price} onChange={v => setEventForm({ ...eventForm, vote_price: v })} required />
+          <Input label="Voting Starts At" type="datetime-local" value={eventForm.voting_starts_at} onChange={v => setEventForm({ ...eventForm, voting_starts_at: v })} />
+          <Input label="Voting Ends At" type="datetime-local" value={eventForm.voting_ends_at} onChange={v => setEventForm({ ...eventForm, voting_ends_at: v })} />
           <FileInput label="Event Cover Image" file={eventForm.cover_file} onChange={file => setEventForm({ ...eventForm, cover_file: file })} />
           <Submit disabled={saving}>Create Event</Submit>
         </form>
@@ -1159,11 +1169,12 @@ function EventsTab({ eventForm, setEventForm, organizations, eventStats, createE
                 <h3 className="font-black truncate">{event.name}</h3>
                 <p className="text-sm text-slate-500 truncate">{event.organization_name} • {event.category_count} categories • {event.nomination_count} nominations</p>
                 <p className="text-xs font-black text-green-700">{currency(event.vote_price || 50)} per vote • {currency(event.revenue)}</p>
+                <p className="text-xs font-bold text-slate-500">{formatEventSchedule(event)}</p>
               </div>
             </div>
 
             <div className="flex items-center gap-2">
-              <IconButton onClick={() => setEditingEvent({ ...event, cover_file: null })}><Pencil size={16} /></IconButton>
+              <IconButton onClick={() => setEditingEvent({ ...event, cover_file: null, voting_starts_at: toDateTimeInputValue(event.voting_starts_at), voting_ends_at: toDateTimeInputValue(event.voting_ends_at) })}><Pencil size={16} /></IconButton>
               <WarnButton onClick={() => resetEventData(event)}><RotateCcw size={16} /></WarnButton>
               <DangerButton onClick={() => deleteEvent(event)}><Trash2 size={16} /></DangerButton>
             </div>
@@ -1482,6 +1493,47 @@ function Brand({ compact = false }) {
 
 function Panel({ title, children }) {
   return <section className="min-w-0 overflow-hidden rounded-[1.25rem] sm:rounded-[2rem] bg-white border border-slate-200 p-4 sm:p-5 md:p-6 shadow-lg"><h2 className="break-words text-lg sm:text-xl md:text-2xl font-black text-slate-950 mb-5">{title}</h2>{children}</section>
+}
+
+
+function toDateTimeInputValue(value) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000)
+  return local.toISOString().slice(0, 16)
+}
+
+function toSupabaseTimestamp(value) {
+  if (!value) return null
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  return date.toISOString()
+}
+
+function getEventStatus(event) {
+  if (!event) return 'Loading'
+  if (event.voting_open === false) return 'Closed'
+
+  const now = Date.now()
+  const startsAt = event.voting_starts_at ? new Date(event.voting_starts_at).getTime() : null
+  const endsAt = event.voting_ends_at ? new Date(event.voting_ends_at).getTime() : null
+
+  if (startsAt && now < startsAt) return 'Not Started'
+  if (endsAt && now > endsAt) return 'Closed'
+  return 'Voting Open'
+}
+
+function formatEventSchedule(event) {
+  const starts = event.voting_starts_at
+    ? new Date(event.voting_starts_at).toLocaleString()
+    : 'Start not set'
+
+  const ends = event.voting_ends_at
+    ? new Date(event.voting_ends_at).toLocaleString()
+    : 'End not set'
+
+  return `${starts} → ${ends}`
 }
 
 function Stat({ title, value }) {
