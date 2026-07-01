@@ -19,12 +19,18 @@ import {
   Trash2,
   RotateCcw,
   Crown,
+  Download,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { currency, slugify } from '../../lib/helpers'
 
 const APP_URL = window.location.origin
 const MEDIA_BUCKET = 'votewave-media'
+
+const ALLOWED_ADMIN_EMAILS = (import.meta.env.VITE_ADMIN_EMAILS || '')
+  .split(',')
+  .map(email => email.trim().toLowerCase())
+  .filter(Boolean)
 
 const tabs = [
   ['overview', LayoutDashboard, 'Overview'],
@@ -113,11 +119,49 @@ const [bulkForm, setBulkForm] = useState({
   })
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      if (!data.user) navigate('/admin/login')
-      else loadAll()
-    })
+    checkAdminAccess()
   }, [navigate])
+
+  async function checkAdminAccess() {
+    const { data } = await supabase.auth.getUser()
+    const user = data?.user
+
+    if (!user) {
+      navigate('/admin/login')
+      return false
+    }
+
+    const email = user.email?.toLowerCase()
+
+    if (ALLOWED_ADMIN_EMAILS.length > 0 && !ALLOWED_ADMIN_EMAILS.includes(email)) {
+      await supabase.auth.signOut()
+      toast.error('Admin access has been revoked.')
+      navigate('/admin/login')
+      return false
+    }
+
+    loadAll()
+    return true
+  }
+
+  async function refreshAdminData() {
+    const { data } = await supabase.auth.getUser()
+    const email = data?.user?.email?.toLowerCase()
+
+    if (!email) {
+      navigate('/admin/login')
+      return
+    }
+
+    if (ALLOWED_ADMIN_EMAILS.length > 0 && !ALLOWED_ADMIN_EMAILS.includes(email)) {
+      await supabase.auth.signOut()
+      toast.error('Admin access has been revoked.')
+      navigate('/admin/login')
+      return
+    }
+
+    loadAll()
+  }
 
   async function loadAll() {
     setLoading(true)
@@ -871,6 +915,61 @@ async function resetEventData(event) {
     toast.success('Voting link copied')
   }
 
+  function exportWinnersReport() {
+    if (!categoryLeaders.length) {
+      toast.error('No winners available to export yet')
+      return
+    }
+
+    const rows = categoryLeaders.map(({ category, event, leader, total_nominees }) => ({
+      event: event?.name || 'Event',
+      category: category.name,
+      winner: leader?.full_name || 'No winner yet',
+      nickname: leader?.nickname || '',
+      level: leader?.level || '',
+      total_nominees,
+      votes: Number(leader?.total_votes || leader?.public_score || 0),
+      generated_at: new Date().toLocaleString(),
+    }))
+
+    const headers = [
+      'Event',
+      'Category',
+      'Winner',
+      'Nickname',
+      'Level',
+      'Total Nominees',
+      'Votes',
+      'Generated At',
+    ]
+
+    const csv = [
+      headers.join(','),
+      ...rows.map(row => [
+        row.event,
+        row.category,
+        row.winner,
+        row.nickname,
+        row.level,
+        row.total_nominees,
+        row.votes,
+        row.generated_at,
+      ].map(csvEscape).join(',')),
+    ].join('\n')
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `votewave-winners-report-${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+
+    toast.success('Winners report exported')
+  }
+
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900">
       <div className="grid lg:grid-cols-[280px_1fr]">
@@ -923,7 +1022,7 @@ async function resetEventData(event) {
               <h1 className="break-words text-2xl sm:text-3xl md:text-5xl font-black text-slate-950">{tabs.find(t => t[0] === active)?.[2] || 'Dashboard'}</h1>
             </div>
 
-            <button onClick={loadAll} className="w-full md:w-auto rounded-full bg-white border border-slate-200 px-6 py-3 font-black text-blue-800">Refresh</button>
+            <button onClick={refreshAdminData} className="w-full md:w-auto rounded-full bg-white border border-slate-200 px-6 py-3 font-black text-blue-800">Refresh</button>
           </div>
 
           {loading && <p className="font-bold">Loading admin data...</p>}
@@ -936,6 +1035,21 @@ async function resetEventData(event) {
           {active === 'nominations' && <NominationsTab assignForm={assignForm} setAssignForm={setAssignForm} organizations={organizations} events={events} categories={categories} nominees={nominees} nominations={nominations} assignNominee={assignNominee} copyLink={copyLink} saving={saving} />}
           {active === 'leaders' && (
   <section className="space-y-6">
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-[1.25rem] bg-white border border-slate-200 p-4 shadow-sm">
+      <div>
+        <h2 className="text-xl font-black text-slate-950">Winners Report</h2>
+        <p className="text-sm font-bold text-slate-500">Export the current first position in every category.</p>
+      </div>
+
+      <button
+        onClick={exportWinnersReport}
+        className="inline-flex items-center justify-center gap-2 rounded-full bg-blue-800 px-5 py-3 font-black text-white shadow-sm hover:bg-blue-900 transition"
+      >
+        <Download size={18} />
+        Export Report
+      </button>
+    </div>
+
     <Panel title="First Position in Every Category">
       <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
         {categoryLeaders.length === 0 ? (
@@ -1495,6 +1609,13 @@ function Panel({ title, children }) {
   return <section className="min-w-0 overflow-hidden rounded-[1.25rem] sm:rounded-[2rem] bg-white border border-slate-200 p-4 sm:p-5 md:p-6 shadow-lg"><h2 className="break-words text-lg sm:text-xl md:text-2xl font-black text-slate-950 mb-5">{title}</h2>{children}</section>
 }
 
+
+function csvEscape(value) {
+  const text = String(value ?? '')
+  if (/[",
+]/.test(text)) return `"${text.replace(/"/g, '""')}"`
+  return text
+}
 
 function toDateTimeInputValue(value) {
   if (!value) return ''
