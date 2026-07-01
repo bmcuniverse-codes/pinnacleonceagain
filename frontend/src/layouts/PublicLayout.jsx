@@ -55,7 +55,7 @@ export default function PublicLayout() {
                 VoteWave
               </h1>
               <p className="text-[9px] sm:text-[10px] tracking-[0.22em] text-green-700 dark:text-green-300 uppercase truncate">
-                LASUSTECH Voting
+                Award Voting
               </p>
             </div>
           </Link>

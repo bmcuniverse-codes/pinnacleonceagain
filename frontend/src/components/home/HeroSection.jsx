@@ -29,7 +29,7 @@ export default function HeroSection() {
       <div className="space-y-7">
         <div className="inline-flex items-center gap-2 rounded-full bg-green-50 dark:bg-green-400/10 border border-green-100 dark:border-green-400/20 px-4 py-2 text-sm font-black text-green-700 dark:text-green-300">
           <ShieldCheck size={16} />
-          Verified voting for LASUSTECH events
+          Verified voting for Awards & Events
         </div>
 
         <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black leading-[0.95] tracking-tight text-slate-950 dark:text-white">

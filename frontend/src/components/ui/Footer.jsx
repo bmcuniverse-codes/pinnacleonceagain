@@ -18,7 +18,7 @@ export default function Footer() {
                 </h2>
 
                 <p className="text-xs font-bold text-green-700 dark:text-green-300">
-                  LASUSTECH Voting Platform
+                  Award Voting Platform
                 </p>
               </div>
             </Link>

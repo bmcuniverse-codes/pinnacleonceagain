@@ -68,7 +68,7 @@ export default function CountdownTimer({ event, compact = false }) {
     if (endsAt && now <= endsAt) {
       return {
         label: 'Voting closes in',
-        tone: 'green',
+        tone: 'red',
         target: endsAt,
       }
     }
