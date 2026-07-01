@@ -1062,10 +1062,9 @@ async function resetEventData(event) {
 function Overview({ stats, eventStats, setActive }) {
   return (
     <section className="space-y-6">
-      <div className="grid sm:grid-cols-2 xl:grid-cols-8 gap-4">
+      <div className="grid sm:grid-cols-2 xl:grid-cols-7 gap-4">
         <Stat title="Votes" value={stats.votes} />
         <Stat title="Revenue" value={currency(stats.revenue)} />
-        <Stat title="Successful Payments" value={stats.successful_transactions} />
         <Stat title="Organizations" value={stats.organizations} />
         <Stat title="Events" value={stats.events} />
         <Stat title="Categories" value={stats.categories} />
