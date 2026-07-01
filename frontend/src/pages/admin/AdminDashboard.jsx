@@ -1612,10 +1612,10 @@ function Panel({ title, children }) {
 
 function csvEscape(value) {
   const text = String(value ?? '')
-  if (/[",
-]/.test(text)) return `"${text.replace(/"/g, '""')}"`
+  if (/[\r\n",]/.test(text)) return `"${text.replace(/"/g, '""')}"`
   return text
 }
+
 
 function toDateTimeInputValue(value) {
   if (!value) return ''
