@@ -59,6 +59,27 @@ export default function AdminDashboard() {
   const [nominations, setNominations] = useState([])
   const [transactions, setTransactions] = useState([])
   const [tickets, setTickets] = useState([])
+  const [ticketSettings, setTicketSettings] = useState(null)
+
+  const [ticketSettingsForm, setTicketSettingsForm] = useState({
+    early_bird_ends_at: '',
+    early_single_price: 3000,
+    early_couple_price: 5000,
+    regular_single_price: 5000,
+    regular_couple_price: 8000,
+    ticket_sales_open: true,
+  })
+
+  const [manualTicketForm, setManualTicketForm] = useState({
+    buyer_name: '',
+    buyer_phone: '',
+    buyer_email: '',
+    ticket_type: 'single',
+    ticket_source: 'complimentary',
+    ticket_note: '',
+  })
+
+  const [editingTicket, setEditingTicket] = useState(null)
 
   const [dashboardTotals, setDashboardTotals] = useState({
     successful_transactions: 0,
@@ -169,7 +190,7 @@ const [bulkForm, setBulkForm] = useState({
   async function loadAll() {
     setLoading(true)
 
-    const [orgRes, eventRes, catRes, nomineeRes, nominationRes, txRes, totalsRes, eventTotalsRes, ticketRes] = await Promise.all([
+    const [orgRes, eventRes, catRes, nomineeRes, nominationRes, txRes, totalsRes, eventTotalsRes, ticketRes, ticketSettingsRes] = await Promise.all([
       supabase.from('organizations').select('*').order('created_at', { ascending: false }),
       supabase.from('events').select('*').order('created_at', { ascending: false }),
       supabase.from('categories').select('*').order('name'),
@@ -179,6 +200,7 @@ const [bulkForm, setBulkForm] = useState({
       supabase.from('admin_payment_totals').select('*').single(),
       supabase.from('admin_event_payment_totals').select('*'),
       supabase.from('tickets').select('*').order('created_at', { ascending: false }).limit(500),
+      supabase.from('ticket_settings').select('*').eq('id', 1).maybeSingle(),
     ])
 
     if (orgRes.error) toast.error(orgRes.error.message)
@@ -190,6 +212,7 @@ const [bulkForm, setBulkForm] = useState({
     if (totalsRes.error) toast.error(totalsRes.error.message)
     if (eventTotalsRes.error) toast.error(eventTotalsRes.error.message)
     if (ticketRes.error) toast.error(ticketRes.error.message)
+    if (ticketSettingsRes.error) toast.error(ticketSettingsRes.error.message)
 
     const orgs = orgRes.data || []
     const evs = eventRes.data || []
@@ -204,6 +227,7 @@ const [bulkForm, setBulkForm] = useState({
     }
     const eventTotals = eventTotalsRes.data || []
     const ticketRows = ticketRes.data || []
+    const settings = ticketSettingsRes.data || null
 
     setOrganizations(orgs)
     setEvents(evs)
@@ -214,6 +238,18 @@ const [bulkForm, setBulkForm] = useState({
     setDashboardTotals(totals)
     setEventPaymentTotals(eventTotals)
     setTickets(ticketRows)
+    setTicketSettings(settings)
+
+    if (settings) {
+      setTicketSettingsForm({
+        early_bird_ends_at: toDateTimeInputValue(settings.early_bird_ends_at),
+        early_single_price: Number(settings.early_single_price || 3000),
+        early_couple_price: Number(settings.early_couple_price || 5000),
+        regular_single_price: Number(settings.regular_single_price || 5000),
+        regular_couple_price: Number(settings.regular_couple_price || 8000),
+        ticket_sales_open: Boolean(settings.ticket_sales_open),
+      })
+    }
 
     const firstOrg = orgs[0]?.id || ''
     const firstEvent = evs[0]?.id || ''
@@ -318,6 +354,9 @@ const categoryLeaders = useMemo(() => {
       paid: paidTickets.length,
       used: usedTickets.length,
       unused: paidTickets.filter(ticket => ticket.ticket_status === 'valid').length,
+      pending: tickets.filter(ticket => ticket.payment_status === 'pending' || ticket.ticket_status === 'pending').length,
+      cancelled: tickets.filter(ticket => ticket.ticket_status === 'cancelled').length,
+      manual: paidTickets.filter(ticket => ['complimentary', 'guest', 'staff'].includes(ticket.ticket_source)).length,
       revenue: paidTickets.reduce((sum, ticket) => sum + Number(ticket.amount || 0), 0),
       early: paidTickets.filter(ticket => ticket.ticket_phase === 'early_bird').length,
       regular: paidTickets.filter(ticket => ticket.ticket_phase === 'regular').length,
@@ -1044,6 +1083,173 @@ async function resetEventData(event) {
     toast.success('Tickets report exported')
   }
 
+
+  async function updateTicketSettings(e) {
+    e.preventDefault()
+    setSaving(true)
+
+    try {
+      const payload = {
+        id: 1,
+        early_bird_ends_at: toSupabaseTimestamp(ticketSettingsForm.early_bird_ends_at),
+        early_single_price: Number(ticketSettingsForm.early_single_price || 3000),
+        early_couple_price: Number(ticketSettingsForm.early_couple_price || 5000),
+        regular_single_price: Number(ticketSettingsForm.regular_single_price || 5000),
+        regular_couple_price: Number(ticketSettingsForm.regular_couple_price || 8000),
+        ticket_sales_open: Boolean(ticketSettingsForm.ticket_sales_open),
+        updated_at: new Date().toISOString(),
+      }
+
+      if (!payload.early_bird_ends_at) {
+        toast.error('Set the Early Bird end date and time')
+        return
+      }
+
+      const { error } = await supabase
+        .from('ticket_settings')
+        .upsert(payload, { onConflict: 'id' })
+
+      if (error) throw error
+
+      toast.success('Ticket settings updated')
+      loadAll()
+    } catch (error) {
+      toast.error(error.message || 'Could not update ticket settings')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function createManualTicket(e) {
+    e.preventDefault()
+
+    if (!manualTicketForm.buyer_name.trim()) {
+      toast.error('Enter the ticket holder name')
+      return
+    }
+
+    setSaving(true)
+
+    try {
+      const phase = getCurrentTicketPhase(ticketSettings)
+      const ticketCode = generateTicketCode('MANUAL')
+      const paymentReference = `manual-${ticketCode.toLowerCase()}`
+
+      const payload = {
+        ticket_code: ticketCode,
+        buyer_name: manualTicketForm.buyer_name.trim(),
+        buyer_phone: manualTicketForm.buyer_phone || null,
+        buyer_email: manualTicketForm.buyer_email || null,
+        ticket_phase: phase,
+        ticket_type: manualTicketForm.ticket_type,
+        amount: 0,
+        payment_reference: paymentReference,
+        payment_status: 'success',
+        ticket_status: 'valid',
+        ticket_source: manualTicketForm.ticket_source,
+        ticket_note: manualTicketForm.ticket_note || null,
+      }
+
+      const { error } = await supabase.from('tickets').insert(payload)
+      if (error) throw error
+
+      toast.success('Manual ticket created')
+      setManualTicketForm({
+        buyer_name: '',
+        buyer_phone: '',
+        buyer_email: '',
+        ticket_type: 'single',
+        ticket_source: 'complimentary',
+        ticket_note: '',
+      })
+      loadAll()
+    } catch (error) {
+      toast.error(error.message || 'Could not create manual ticket')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function updateTicket(e) {
+    e.preventDefault()
+    if (!editingTicket) return
+
+    setSaving(true)
+
+    try {
+      const payload = {
+        buyer_name: editingTicket.buyer_name,
+        buyer_phone: editingTicket.buyer_phone || null,
+        buyer_email: editingTicket.buyer_email || null,
+        ticket_type: editingTicket.ticket_type,
+        ticket_phase: editingTicket.ticket_phase,
+        amount: Number(editingTicket.amount || 0),
+        payment_status: editingTicket.payment_status,
+        ticket_status: editingTicket.ticket_status,
+        ticket_source: editingTicket.ticket_source || null,
+        ticket_note: editingTicket.ticket_note || null,
+      }
+
+      if (payload.ticket_status !== 'used') {
+        payload.used_at = null
+      }
+
+      const { error } = await supabase
+        .from('tickets')
+        .update(payload)
+        .eq('id', editingTicket.id)
+
+      if (error) throw error
+
+      toast.success('Ticket updated')
+      setEditingTicket(null)
+      loadAll()
+    } catch (error) {
+      toast.error(error.message || 'Could not update ticket')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function updateTicketStatus(ticket, status) {
+    const statusLabels = {
+      valid: 'restore this ticket as valid',
+      used: 'mark this ticket as used',
+      cancelled: 'cancel this ticket',
+    }
+
+    const yes = window.confirm(`Are you sure you want to ${statusLabels[status] || 'update this ticket'}?`)
+    if (!yes) return
+
+    setSaving(true)
+
+    try {
+      const payload = {
+        ticket_status: status,
+        used_at: status === 'used' ? new Date().toISOString() : null,
+      }
+
+      const { error } = await supabase
+        .from('tickets')
+        .update(payload)
+        .eq('id', ticket.id)
+
+      if (error) throw error
+
+      toast.success('Ticket status updated')
+      loadAll()
+    } catch (error) {
+      toast.error(error.message || 'Could not update ticket status')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function copyTicketLink(ticket) {
+    navigator.clipboard.writeText(`${APP_URL}/verify-ticket/${ticket.ticket_code}`)
+    toast.success('Ticket verification link copied')
+  }
+
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900">
       <div className="grid lg:grid-cols-[280px_1fr]">
@@ -1193,7 +1399,7 @@ async function resetEventData(event) {
   </section>
 )}
           {active === 'payments' && <PaymentsTab transactions={transactions} />}
-          {active === 'tickets' && <TicketsTab tickets={tickets} ticketStats={ticketStats} exportTicketsReport={exportTicketsReport} />}
+          {active === 'tickets' && <TicketsTab tickets={tickets} ticketStats={ticketStats} ticketSettingsForm={ticketSettingsForm} setTicketSettingsForm={setTicketSettingsForm} manualTicketForm={manualTicketForm} setManualTicketForm={setManualTicketForm} updateTicketSettings={updateTicketSettings} createManualTicket={createManualTicket} exportTicketsReport={exportTicketsReport} setEditingTicket={setEditingTicket} updateTicketStatus={updateTicketStatus} copyTicketLink={copyTicketLink} saving={saving} />}
         </main>
       </div>
 
@@ -1252,6 +1458,25 @@ async function resetEventData(event) {
           </form>
         </Modal>
       )}
+
+      {editingTicket && (
+        <Modal title="Edit Ticket" onClose={() => setEditingTicket(null)}>
+          <form onSubmit={updateTicket} className="space-y-4">
+            <Input label="Ticket Holder Name" value={editingTicket.buyer_name || ''} onChange={v => setEditingTicket({ ...editingTicket, buyer_name: v })} required />
+            <Input label="Phone" value={editingTicket.buyer_phone || ''} onChange={v => setEditingTicket({ ...editingTicket, buyer_phone: v })} />
+            <Input label="Email" type="email" value={editingTicket.buyer_email || ''} onChange={v => setEditingTicket({ ...editingTicket, buyer_email: v })} />
+            <Select label="Ticket Type" value={editingTicket.ticket_type || 'single'} onChange={v => setEditingTicket({ ...editingTicket, ticket_type: v })} options={[['single', 'Single'], ['couple', 'Couple']]} />
+            <Select label="Ticket Phase" value={editingTicket.ticket_phase || 'regular'} onChange={v => setEditingTicket({ ...editingTicket, ticket_phase: v })} options={[['early_bird', 'Early Bird'], ['regular', 'Regular']]} />
+            <Input label="Amount" type="number" value={editingTicket.amount || 0} onChange={v => setEditingTicket({ ...editingTicket, amount: v })} />
+            <Select label="Payment Status" value={editingTicket.payment_status || 'pending'} onChange={v => setEditingTicket({ ...editingTicket, payment_status: v })} options={[['pending', 'Pending'], ['success', 'Success'], ['failed', 'Failed']]} />
+            <Select label="Ticket Status" value={editingTicket.ticket_status || 'pending'} onChange={v => setEditingTicket({ ...editingTicket, ticket_status: v })} options={[['pending', 'Pending'], ['valid', 'Valid'], ['used', 'Used'], ['cancelled', 'Cancelled']]} />
+            <Select label="Ticket Source" value={editingTicket.ticket_source || 'paid'} onChange={v => setEditingTicket({ ...editingTicket, ticket_source: v })} options={[['paid', 'Paid'], ['complimentary', 'Complimentary'], ['guest', 'Guest'], ['staff', 'Staff']]} />
+            <Textarea label="Ticket Note" value={editingTicket.ticket_note || ''} onChange={v => setEditingTicket({ ...editingTicket, ticket_note: v })} />
+            <Submit disabled={saving}>Save Ticket</Submit>
+          </form>
+        </Modal>
+      )}
+
     </div>
   )
 }
@@ -1637,54 +1862,214 @@ function NominationsTab({
   )
 }
 
-function TicketsTab({ tickets, ticketStats, exportTicketsReport }) {
+function TicketsTab({
+  tickets,
+  ticketStats,
+  ticketSettingsForm,
+  setTicketSettingsForm,
+  manualTicketForm,
+  setManualTicketForm,
+  updateTicketSettings,
+  createManualTicket,
+  exportTicketsReport,
+  setEditingTicket,
+  updateTicketStatus,
+  copyTicketLink,
+  saving,
+}) {
   return (
     <section className="space-y-6">
-      <div className="grid sm:grid-cols-2 xl:grid-cols-5 gap-4">
+      <div className="grid sm:grid-cols-2 xl:grid-cols-6 gap-4">
         <Stat title="Paid Tickets" value={ticketStats.paid} />
         <Stat title="Ticket Revenue" value={currency(ticketStats.revenue)} />
         <Stat title="Valid Unused" value={ticketStats.unused} />
         <Stat title="Used Tickets" value={ticketStats.used} />
-        <Stat title="Couple Tickets" value={ticketStats.couple} />
+        <Stat title="Manual Tickets" value={ticketStats.manual} />
+        <Stat title="Cancelled" value={ticketStats.cancelled} />
       </div>
 
-      <Panel title="Ticket Sales Report">
-        <div className="mb-5 flex justify-end">
-          <button onClick={exportTicketsReport} className="inline-flex items-center gap-2 rounded-full bg-blue-800 px-5 py-3 text-sm font-black text-white">
+      <section className="grid grid-cols-1 xl:grid-cols-[minmax(0,430px)_minmax(0,1fr)] gap-4 md:gap-6">
+        <Panel title="Ticket Settings">
+          <form onSubmit={updateTicketSettings} className="space-y-4">
+            <Input
+              label="Early Bird Ends At"
+              type="datetime-local"
+              value={ticketSettingsForm.early_bird_ends_at}
+              onChange={v => setTicketSettingsForm({ ...ticketSettingsForm, early_bird_ends_at: v })}
+              required
+            />
+
+            <div className="grid sm:grid-cols-2 gap-3">
+              <Input
+                label="Early Single Price"
+                type="number"
+                value={ticketSettingsForm.early_single_price}
+                onChange={v => setTicketSettingsForm({ ...ticketSettingsForm, early_single_price: v })}
+                required
+              />
+
+              <Input
+                label="Early Couple Price"
+                type="number"
+                value={ticketSettingsForm.early_couple_price}
+                onChange={v => setTicketSettingsForm({ ...ticketSettingsForm, early_couple_price: v })}
+                required
+              />
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-3">
+              <Input
+                label="Regular Single Price"
+                type="number"
+                value={ticketSettingsForm.regular_single_price}
+                onChange={v => setTicketSettingsForm({ ...ticketSettingsForm, regular_single_price: v })}
+                required
+              />
+
+              <Input
+                label="Regular Couple Price"
+                type="number"
+                value={ticketSettingsForm.regular_couple_price}
+                onChange={v => setTicketSettingsForm({ ...ticketSettingsForm, regular_couple_price: v })}
+                required
+              />
+            </div>
+
+            <Toggle
+              label="Ticket Sales Open"
+              checked={ticketSettingsForm.ticket_sales_open}
+              onChange={v => setTicketSettingsForm({ ...ticketSettingsForm, ticket_sales_open: v })}
+            />
+
+            <Submit disabled={saving}>Save Ticket Settings</Submit>
+          </form>
+        </Panel>
+
+        <Panel title="Create Manual Ticket">
+          <form onSubmit={createManualTicket} className="space-y-4">
+            <Input
+              label="Ticket Holder Name"
+              value={manualTicketForm.buyer_name}
+              onChange={v => setManualTicketForm({ ...manualTicketForm, buyer_name: v })}
+              required
+            />
+
+            <div className="grid sm:grid-cols-2 gap-3">
+              <Input
+                label="Phone"
+                value={manualTicketForm.buyer_phone}
+                onChange={v => setManualTicketForm({ ...manualTicketForm, buyer_phone: v })}
+              />
+
+              <Input
+                label="Email"
+                type="email"
+                value={manualTicketForm.buyer_email}
+                onChange={v => setManualTicketForm({ ...manualTicketForm, buyer_email: v })}
+              />
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-3">
+              <Select
+                label="Ticket Type"
+                value={manualTicketForm.ticket_type}
+                onChange={v => setManualTicketForm({ ...manualTicketForm, ticket_type: v })}
+                options={[['single', 'Single'], ['couple', 'Couple']]}
+              />
+
+              <Select
+                label="Ticket Source"
+                value={manualTicketForm.ticket_source}
+                onChange={v => setManualTicketForm({ ...manualTicketForm, ticket_source: v })}
+                options={[['complimentary', 'Complimentary'], ['guest', 'Guest'], ['staff', 'Staff']]}
+              />
+            </div>
+
+            <Textarea
+              label="Ticket Note"
+              value={manualTicketForm.ticket_note}
+              onChange={v => setManualTicketForm({ ...manualTicketForm, ticket_note: v })}
+              placeholder="Example: Special guest, invited staff, VIP complimentary ticket..."
+            />
+
+            <Submit disabled={saving}>Generate Manual QR Ticket</Submit>
+          </form>
+        </Panel>
+      </section>
+
+      <Panel title="Ticket Sales & Management">
+        <div className="mb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <p className="text-sm font-bold text-slate-500">
+              Manage paid, complimentary, guest and staff tickets. Use status actions carefully at the gate.
+            </p>
+          </div>
+
+          <button onClick={exportTicketsReport} className="inline-flex items-center justify-center gap-2 rounded-full bg-blue-800 px-5 py-3 text-sm font-black text-white">
             <Download size={16} />
             Export Tickets CSV
           </button>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[920px] text-sm">
+          <table className="w-full min-w-[1120px] text-sm">
             <thead className="text-left text-slate-500">
               <tr>
                 <th className="p-3">Code</th>
                 <th className="p-3">Buyer</th>
                 <th className="p-3">Phone</th>
                 <th className="p-3">Type</th>
+                <th className="p-3">Source</th>
                 <th className="p-3">Phase</th>
                 <th className="p-3">Amount</th>
                 <th className="p-3">Payment</th>
                 <th className="p-3">Ticket</th>
                 <th className="p-3">Used At</th>
+                <th className="p-3">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {tickets.map(ticket => (
-                <tr key={ticket.id} className="border-t border-slate-200">
-                  <td className="p-3 font-bold">{ticket.ticket_code}</td>
-                  <td className="p-3 font-bold">{ticket.buyer_name}</td>
-                  <td className="p-3">{ticket.buyer_phone || '—'}</td>
-                  <td className="p-3 capitalize">{ticket.ticket_type}</td>
-                  <td className="p-3 capitalize">{String(ticket.ticket_phase || '').replace('_', ' ')}</td>
-                  <td className="p-3">{currency(ticket.amount || 0)}</td>
-                  <td className="p-3">{ticket.payment_status}</td>
-                  <td className="p-3">{ticket.ticket_status}</td>
-                  <td className="p-3">{ticket.used_at ? new Date(ticket.used_at).toLocaleString() : '—'}</td>
+              {tickets.length === 0 ? (
+                <tr>
+                  <td colSpan="11" className="p-5 text-center font-bold text-slate-500">
+                    No ticket record available yet.
+                  </td>
                 </tr>
-              ))}
+              ) : (
+                tickets.map(ticket => (
+                  <tr key={ticket.id} className="border-t border-slate-200">
+                    <td className="p-3 font-bold">{ticket.ticket_code}</td>
+                    <td className="p-3 font-bold">{ticket.buyer_name}</td>
+                    <td className="p-3">{ticket.buyer_phone || '—'}</td>
+                    <td className="p-3 capitalize">{ticket.ticket_type}</td>
+                    <td className="p-3 capitalize">{ticket.ticket_source || 'paid'}</td>
+                    <td className="p-3 capitalize">{String(ticket.ticket_phase || '').replace('_', ' ')}</td>
+                    <td className="p-3">{currency(ticket.amount || 0)}</td>
+                    <td className="p-3">{ticket.payment_status}</td>
+                    <td className="p-3">{ticket.ticket_status}</td>
+                    <td className="p-3">{ticket.used_at ? new Date(ticket.used_at).toLocaleString() : '—'}</td>
+                    <td className="p-3">
+                      <div className="flex flex-wrap gap-2">
+                        <button onClick={() => setEditingTicket(ticket)} className="rounded-full bg-blue-800 px-3 py-2 text-xs font-black text-white">
+                          Edit
+                        </button>
+                        <button onClick={() => copyTicketLink(ticket)} className="rounded-full bg-slate-200 px-3 py-2 text-xs font-black text-slate-700">
+                          Copy QR
+                        </button>
+                        <button onClick={() => updateTicketStatus(ticket, 'valid')} className="rounded-full bg-green-50 px-3 py-2 text-xs font-black text-green-700">
+                          Valid
+                        </button>
+                        <button onClick={() => updateTicketStatus(ticket, 'used')} className="rounded-full bg-yellow-100 px-3 py-2 text-xs font-black text-yellow-700">
+                          Used
+                        </button>
+                        <button onClick={() => updateTicketStatus(ticket, 'cancelled')} className="rounded-full bg-red-50 px-3 py-2 text-xs font-black text-red-600">
+                          Cancel
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -1740,6 +2125,20 @@ function Panel({ title, children }) {
   return <section className="min-w-0 overflow-hidden rounded-[1.25rem] sm:rounded-[2rem] bg-white border border-slate-200 p-4 sm:p-5 md:p-6 shadow-lg"><h2 className="break-words text-lg sm:text-xl md:text-2xl font-black text-slate-950 mb-5">{title}</h2>{children}</section>
 }
 
+
+
+function generateTicketCode(prefix = 'TICKET') {
+  const random = Math.random().toString(36).slice(2, 8).toUpperCase()
+  const time = Date.now().toString(36).toUpperCase()
+  return `${prefix}-${time}-${random}`
+}
+
+function getCurrentTicketPhase(settings) {
+  if (!settings?.early_bird_ends_at) return 'regular'
+  const deadline = new Date(settings.early_bird_ends_at).getTime()
+  if (Number.isNaN(deadline)) return 'regular'
+  return Date.now() <= deadline ? 'early_bird' : 'regular'
+}
 
 function csvEscape(value) {
   const text = String(value ?? '')
