@@ -20,6 +20,7 @@ import {
   RotateCcw,
   Crown,
   Download,
+  Ticket,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { currency, slugify } from '../../lib/helpers'
@@ -41,6 +42,7 @@ const tabs = [
   ['nominations', Vote, 'Nominations'],
   ['leaders', Crown, 'Leaders'],
   ['payments', CreditCard, 'Payments'],
+  ['tickets', Ticket, 'Tickets'],
 ]
 
 export default function AdminDashboard() {
@@ -56,6 +58,7 @@ export default function AdminDashboard() {
   const [nominees, setNominees] = useState([])
   const [nominations, setNominations] = useState([])
   const [transactions, setTransactions] = useState([])
+  const [tickets, setTickets] = useState([])
 
   const [dashboardTotals, setDashboardTotals] = useState({
     successful_transactions: 0,
@@ -166,7 +169,7 @@ const [bulkForm, setBulkForm] = useState({
   async function loadAll() {
     setLoading(true)
 
-    const [orgRes, eventRes, catRes, nomineeRes, nominationRes, txRes, totalsRes, eventTotalsRes] = await Promise.all([
+    const [orgRes, eventRes, catRes, nomineeRes, nominationRes, txRes, totalsRes, eventTotalsRes, ticketRes] = await Promise.all([
       supabase.from('organizations').select('*').order('created_at', { ascending: false }),
       supabase.from('events').select('*').order('created_at', { ascending: false }),
       supabase.from('categories').select('*').order('name'),
@@ -175,6 +178,7 @@ const [bulkForm, setBulkForm] = useState({
       supabase.from('vote_transactions').select('*').order('created_at', { ascending: false }).limit(150),
       supabase.from('admin_payment_totals').select('*').single(),
       supabase.from('admin_event_payment_totals').select('*'),
+      supabase.from('tickets').select('*').order('created_at', { ascending: false }).limit(500),
     ])
 
     if (orgRes.error) toast.error(orgRes.error.message)
@@ -185,6 +189,7 @@ const [bulkForm, setBulkForm] = useState({
     if (txRes.error) toast.error(txRes.error.message)
     if (totalsRes.error) toast.error(totalsRes.error.message)
     if (eventTotalsRes.error) toast.error(eventTotalsRes.error.message)
+    if (ticketRes.error) toast.error(ticketRes.error.message)
 
     const orgs = orgRes.data || []
     const evs = eventRes.data || []
@@ -198,6 +203,7 @@ const [bulkForm, setBulkForm] = useState({
       total_votes: 0,
     }
     const eventTotals = eventTotalsRes.data || []
+    const ticketRows = ticketRes.data || []
 
     setOrganizations(orgs)
     setEvents(evs)
@@ -207,6 +213,7 @@ const [bulkForm, setBulkForm] = useState({
     setTransactions(txs)
     setDashboardTotals(totals)
     setEventPaymentTotals(eventTotals)
+    setTickets(ticketRows)
 
     const firstOrg = orgs[0]?.id || ''
     const firstEvent = evs[0]?.id || ''
@@ -301,6 +308,23 @@ const categoryLeaders = useMemo(() => {
 }, [categories, nominations, events])
 
 
+
+  const ticketStats = useMemo(() => {
+    const paidTickets = tickets.filter(ticket => ticket.payment_status === 'success')
+    const usedTickets = tickets.filter(ticket => ticket.ticket_status === 'used')
+
+    return {
+      total: tickets.length,
+      paid: paidTickets.length,
+      used: usedTickets.length,
+      unused: paidTickets.filter(ticket => ticket.ticket_status === 'valid').length,
+      revenue: paidTickets.reduce((sum, ticket) => sum + Number(ticket.amount || 0), 0),
+      early: paidTickets.filter(ticket => ticket.ticket_phase === 'early_bird').length,
+      regular: paidTickets.filter(ticket => ticket.ticket_phase === 'regular').length,
+      single: paidTickets.filter(ticket => ticket.ticket_type === 'single').length,
+      couple: paidTickets.filter(ticket => ticket.ticket_type === 'couple').length,
+    }
+  }, [tickets])
 
   const organizationStats = useMemo(() => {
     return organizations.map(org => {
@@ -970,6 +994,56 @@ async function resetEventData(event) {
     toast.success('Winners report exported')
   }
 
+  function exportTicketsReport() {
+    if (!tickets.length) {
+      toast.error('No ticket record available yet')
+      return
+    }
+
+    const headers = [
+      'Ticket Code',
+      'Name',
+      'Phone',
+      'Email',
+      'Phase',
+      'Type',
+      'Amount',
+      'Payment Status',
+      'Ticket Status',
+      'Used At',
+      'Created At',
+    ]
+
+    const csv = [
+      headers.join(','),
+      ...tickets.map(ticket => [
+        ticket.ticket_code,
+        ticket.buyer_name,
+        ticket.buyer_phone,
+        ticket.buyer_email,
+        ticket.ticket_phase,
+        ticket.ticket_type,
+        Number(ticket.amount || 0),
+        ticket.payment_status,
+        ticket.ticket_status,
+        ticket.used_at ? new Date(ticket.used_at).toLocaleString() : '',
+        ticket.created_at ? new Date(ticket.created_at).toLocaleString() : '',
+      ].map(csvEscape).join(',')),
+    ].join('\n')
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `votewave-tickets-report-${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+
+    toast.success('Tickets report exported')
+  }
+
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900">
       <div className="grid lg:grid-cols-[280px_1fr]">
@@ -1119,6 +1193,7 @@ async function resetEventData(event) {
   </section>
 )}
           {active === 'payments' && <PaymentsTab transactions={transactions} />}
+          {active === 'tickets' && <TicketsTab tickets={tickets} ticketStats={ticketStats} exportTicketsReport={exportTicketsReport} />}
         </main>
       </div>
 
@@ -1557,6 +1632,62 @@ function NominationsTab({
             </IconButton>
           </>
         )} />
+      </Panel>
+    </section>
+  )
+}
+
+function TicketsTab({ tickets, ticketStats, exportTicketsReport }) {
+  return (
+    <section className="space-y-6">
+      <div className="grid sm:grid-cols-2 xl:grid-cols-5 gap-4">
+        <Stat title="Paid Tickets" value={ticketStats.paid} />
+        <Stat title="Ticket Revenue" value={currency(ticketStats.revenue)} />
+        <Stat title="Valid Unused" value={ticketStats.unused} />
+        <Stat title="Used Tickets" value={ticketStats.used} />
+        <Stat title="Couple Tickets" value={ticketStats.couple} />
+      </div>
+
+      <Panel title="Ticket Sales Report">
+        <div className="mb-5 flex justify-end">
+          <button onClick={exportTicketsReport} className="inline-flex items-center gap-2 rounded-full bg-blue-800 px-5 py-3 text-sm font-black text-white">
+            <Download size={16} />
+            Export Tickets CSV
+          </button>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[920px] text-sm">
+            <thead className="text-left text-slate-500">
+              <tr>
+                <th className="p-3">Code</th>
+                <th className="p-3">Buyer</th>
+                <th className="p-3">Phone</th>
+                <th className="p-3">Type</th>
+                <th className="p-3">Phase</th>
+                <th className="p-3">Amount</th>
+                <th className="p-3">Payment</th>
+                <th className="p-3">Ticket</th>
+                <th className="p-3">Used At</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tickets.map(ticket => (
+                <tr key={ticket.id} className="border-t border-slate-200">
+                  <td className="p-3 font-bold">{ticket.ticket_code}</td>
+                  <td className="p-3 font-bold">{ticket.buyer_name}</td>
+                  <td className="p-3">{ticket.buyer_phone || '—'}</td>
+                  <td className="p-3 capitalize">{ticket.ticket_type}</td>
+                  <td className="p-3 capitalize">{String(ticket.ticket_phase || '').replace('_', ' ')}</td>
+                  <td className="p-3">{currency(ticket.amount || 0)}</td>
+                  <td className="p-3">{ticket.payment_status}</td>
+                  <td className="p-3">{ticket.ticket_status}</td>
+                  <td className="p-3">{ticket.used_at ? new Date(ticket.used_at).toLocaleString() : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </Panel>
     </section>
   )

@@ -9,7 +9,16 @@
     "build": "cd frontend && npm run build",
     "preview": "cd frontend && npm run preview"
   },
-  "keywords": ["voting", "supabase", "paystack", "react", "events"],
+  "keywords": [
+    "voting",
+    "supabase",
+    "paystack",
+    "react",
+    "events"
+  ],
   "author": "VoteWave",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "supabase": "^2.109.0"
+  }
 }

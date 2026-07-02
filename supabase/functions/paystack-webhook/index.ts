@@ -23,6 +23,31 @@ serve(async (req) => {
     const amountPaid = Number(event.data.amount || 0) / 100
 
     const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
+
+    if (String(reference || '').startsWith('VTK-') || event.data?.metadata?.payment_type === 'ticket') {
+      const { data: ticket, error: ticketError } = await supabase
+        .from('tickets')
+        .select('*')
+        .eq('payment_reference', reference)
+        .single()
+
+      if (ticketError || !ticket) throw new Error('Ticket transaction not found')
+      if (Number(ticket.amount) !== amountPaid) throw new Error('Ticket amount mismatch')
+
+      if (ticket.payment_status === 'success') return new Response('OK', { status: 200 })
+
+      const { error: updateError } = await supabase
+        .from('tickets')
+        .update({
+          payment_status: 'success',
+          ticket_status: 'valid',
+        })
+        .eq('payment_reference', reference)
+
+      if (updateError) throw updateError
+      return new Response('OK', { status: 200 })
+    }
+
     const { data: tx, error: txError } = await supabase.from('vote_transactions').select('*').eq('payment_reference', reference).single()
     if (txError || !tx) throw new Error('Transaction not found')
     if (Number(tx.amount) !== amountPaid) throw new Error('Amount mismatch')
@@ -31,6 +56,6 @@ serve(async (req) => {
     if (error) throw error
     return new Response('OK', { status: 200 })
   } catch (error) {
-    return new Response(error.message, { status: 400 })
+    return new Response(error instanceof Error ? error.message : 'Webhook error', { status: 400 })
   }
 })

@@ -11,6 +11,11 @@ import AdminLogin from './pages/admin/AdminLogin'
 import AdminDashboard from './pages/admin/AdminDashboard'
 import CommitteeLogin from './pages/CommitteeLogin'
 import CommitteeDashboard from './pages/CommitteeDashboard'
+import TicketPurchase from './pages/TicketPurchase'
+import TicketSuccess from './pages/TicketSuccess'
+import VerifierLogin from './pages/VerifierLogin'
+import VerifierDashboard from './pages/VerifierDashboard'
+import VerifyTicket from './pages/VerifyTicket'
 
 export default function App() {
   return <Routes>
@@ -22,6 +27,8 @@ export default function App() {
       <Route path="/vote/:nominationSlug" element={<NomineeProfile />} />
       <Route path="/leaderboard" element={<Leaderboard />} />
       <Route path="/success" element={<Success />} />
+      <Route path="/tickets" element={<TicketPurchase />} />
+      <Route path="/ticket/success" element={<TicketSuccess />} />
     </Route>
 
     <Route path="/admin/login" element={<AdminLogin />} />
@@ -30,5 +37,9 @@ export default function App() {
     <Route path="/committee" element={<CommitteeLogin />} />
     <Route path="/committee/login" element={<CommitteeLogin />} />
     <Route path="/committee/dashboard" element={<CommitteeDashboard />} />
+
+    <Route path="/verifier" element={<VerifierDashboard />} />
+    <Route path="/verifier/login" element={<VerifierLogin />} />
+    <Route path="/verify-ticket/:code" element={<VerifyTicket />} />
   </Routes>
 }

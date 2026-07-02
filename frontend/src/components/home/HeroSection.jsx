@@ -45,6 +45,10 @@ export default function HeroSection() {
         )}
 
         <div className="flex flex-col sm:flex-row gap-3">
+          <Link to="/tickets" className="inline-flex items-center justify-center gap-2 rounded-full bg-yellow-400 px-7 py-4 font-black text-blue-950 shadow-lg hover:bg-yellow-300 transition">
+            Buy Ticket <ArrowRight size={19} />
+          </Link>
+
           <Link to="/events" className="inline-flex items-center justify-center gap-2 rounded-full bg-blue-800 px-7 py-4 font-black text-white shadow-lg hover:bg-blue-900 transition">
             Start Voting <ArrowRight size={19} />
           </Link>
