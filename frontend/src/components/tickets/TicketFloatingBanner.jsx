@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Ticket, Clock } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
@@ -37,7 +37,19 @@ function getTicketPhase(settings) {
   }
 }
 
+function shouldHideBanner(pathname) {
+  return (
+    pathname.startsWith('/admin') ||
+    pathname.startsWith('/committee') ||
+    pathname.startsWith('/verifier') ||
+    pathname.startsWith('/verify-ticket') ||
+    pathname.startsWith('/ticket/success')
+  )
+}
+
 export default function TicketFloatingBanner() {
+  const location = useLocation()
+
   const { data: settings } = useQuery({
     queryKey: ['ticket-settings-floating'],
     queryFn: getTicketSettings,
@@ -46,20 +58,23 @@ export default function TicketFloatingBanner() {
 
   const phase = getTicketPhase(settings)
 
+  if (shouldHideBanner(location.pathname)) return null
   if (!settings || !phase.active) return null
 
   return (
-    <div className="fixed left-3 right-3 bottom-4 z-50 mx-auto max-w-5xl rounded-[1.5rem] border border-yellow-200 bg-blue-950 text-white shadow-2xl">
-      <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-start gap-3">
-          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-yellow-400 text-blue-950">
+    <div className="fixed left-3 right-3 bottom-28 z-[999] mx-auto max-w-5xl rounded-[1.5rem] border border-yellow-200 bg-blue-950 text-white shadow-2xl md:left-6 md:right-6 md:bottom-6">
+      <div className="flex flex-col gap-3 p-3 sm:p-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-yellow-400 text-blue-950 sm:h-11 sm:w-11">
             <Ticket size={22} />
           </div>
-          <div>
-            <p className="flex items-center gap-2 text-sm font-black text-yellow-300">
-              <Clock size={15} />
-              {phase.label}
+
+          <div className="min-w-0">
+            <p className="flex items-center gap-2 text-xs font-black text-yellow-300 sm:text-sm">
+              <Clock size={15} className="shrink-0" />
+              <span className="truncate">{phase.label}</span>
             </p>
+
             <p className="mt-1 text-sm font-bold text-white/90">
               Single ₦{phase.single.toLocaleString()} • Couple ₦{phase.couple.toLocaleString()}
             </p>
@@ -68,7 +83,7 @@ export default function TicketFloatingBanner() {
 
         <Link
           to="/tickets"
-          className="inline-flex items-center justify-center rounded-full bg-yellow-400 px-6 py-3 text-sm font-black text-blue-950 transition hover:bg-yellow-300"
+          className="inline-flex shrink-0 items-center justify-center rounded-full bg-yellow-400 px-5 py-3 text-sm font-black text-blue-950 transition hover:bg-yellow-300"
         >
           Buy Ticket
         </Link>

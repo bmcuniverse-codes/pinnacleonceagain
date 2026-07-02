@@ -16,9 +16,12 @@ import TicketSuccess from './pages/TicketSuccess'
 import VerifierLogin from './pages/VerifierLogin'
 import VerifierDashboard from './pages/VerifierDashboard'
 import VerifyTicket from './pages/VerifyTicket'
+import TicketFloatingBanner from './components/tickets/TicketFloatingBanner'
 
 export default function App() {
-  return <Routes>
+  return (
+    <>
+      <Routes>
     <Route element={<PublicLayout />}>
       <Route path="/" element={<Home />} />
       <Route path="/events" element={<Events />} />
@@ -41,5 +44,9 @@ export default function App() {
     <Route path="/verifier" element={<VerifierDashboard />} />
     <Route path="/verifier/login" element={<VerifierLogin />} />
     <Route path="/verify-ticket/:code" element={<VerifyTicket />} />
-  </Routes>
+      </Routes>
+
+      <TicketFloatingBanner />
+    </>
+  )
 }
