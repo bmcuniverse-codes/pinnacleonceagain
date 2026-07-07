@@ -10,6 +10,7 @@ import {
   LogOut,
   RefreshCcw,
   ShieldCheck,
+  Ticket,
   Trophy,
   Users,
 } from 'lucide-react'
@@ -38,15 +39,19 @@ function formatCurrency(value) {
 
 async function getCommitteeSummary() {
   const { data, error } = await supabase
-    .from('admin_payment_totals')
+    .from('admin_combined_revenue_totals')
     .select('*')
     .single()
 
   if (error) throw error
 
   return {
-    total_votes_display: formatNumber(data?.total_votes),
-    total_revenue_display: formatCurrency(data?.total_revenue),
+    total_votes_display: formatNumber(data?.adjusted_total_votes),
+    total_revenue_display: formatCurrency(data?.combined_total_revenue),
+    vote_revenue_display: formatCurrency(data?.adjusted_vote_revenue),
+    ticket_revenue_display: formatCurrency(data?.ticket_revenue),
+    single_ticket_display: `${formatNumber(data?.single_ticket_count)} • ${formatCurrency(data?.single_ticket_revenue)}`,
+    couple_ticket_display: `${formatNumber(data?.couple_ticket_count)} • ${formatCurrency(data?.couple_ticket_revenue)}`,
     message: 'Results are encrypted and secured.',
     last_updated: new Date().toISOString(),
   }
@@ -267,12 +272,15 @@ export default function CommitteeDashboard() {
 function OverviewTab({ summary, summaryLoading, categories, nominations, leaders }) {
   return (
     <section className="space-y-6">
-      <div className="grid sm:grid-cols-2 xl:grid-cols-5 gap-4">
+      <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <Stat icon={Award} label="Total Revenue" value={summaryLoading ? 'Loading...' : summary?.total_revenue_display || 'Not updated'} />
+        <Stat icon={BarChart3} label="Vote Revenue" value={summaryLoading ? 'Loading...' : summary?.vote_revenue_display || 'Not updated'} />
+        <Stat icon={Ticket} label="Ticket Revenue" value={summaryLoading ? 'Loading...' : summary?.ticket_revenue_display || 'Not updated'} />
+        <Stat icon={BarChart3} label="Total Votes" value={summaryLoading ? 'Loading...' : summary?.total_votes_display || 'Not updated'} />
+        <Stat icon={Ticket} label="Single Tickets" value={summaryLoading ? 'Loading...' : summary?.single_ticket_display || 'Not updated'} />
+        <Stat icon={Ticket} label="Couple Tickets" value={summaryLoading ? 'Loading...' : summary?.couple_ticket_display || 'Not updated'} />
         <Stat icon={Grid3X3} label="Categories" value={categories.length} />
         <Stat icon={Users} label="Nominees" value={nominations.length} />
-        <Stat icon={Trophy} label="Current Leaders" value={leaders.length} />
-        <Stat icon={BarChart3} label="Total Votes" value={summaryLoading ? 'Loading...' : summary?.total_votes_display || 'Not updated'} />
-        <Stat icon={Award} label="Total Revenue" value={summaryLoading ? 'Loading...' : summary?.total_revenue_display || 'Not updated'} />
       </div>
 
       <section className="rounded-[2rem] bg-white border border-slate-200 p-5 sm:p-6 shadow-lg">
