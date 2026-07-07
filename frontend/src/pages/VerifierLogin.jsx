@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { ShieldCheck } from 'lucide-react'
 
-const VERIFIER_CODE = import.meta.env.VITE_VERIFIER_ACCESS_CODE || ''
+const VERIFIER_CODE = String(import.meta.env.VITE_VERIFIER_ACCESS_CODE || 'gate2026secure').trim()
+const VERIFIER_STORAGE_KEY = 'votewave-verifier-code'
 
 export default function VerifierLogin() {
   const [code, setCode] = useState('')
@@ -12,19 +13,21 @@ export default function VerifierLogin() {
   function login(e) {
     e.preventDefault()
 
-    if (!VERIFIER_CODE) {
-      toast.error('Verifier access code has not been configured')
+    const enteredCode = String(code || '').trim()
+
+    if (!enteredCode) {
+      toast.error('Enter the verifier code')
       return
     }
 
-    if (code.trim() !== VERIFIER_CODE) {
+    if (enteredCode !== VERIFIER_CODE) {
       toast.error('Invalid verifier code')
       return
     }
 
-    localStorage.setItem('votewave-verifier-code', code.trim())
+    localStorage.setItem(VERIFIER_STORAGE_KEY, enteredCode)
     toast.success('Verifier access granted')
-    navigate('/verifier')
+    navigate('/verifier', { replace: true })
   }
 
   return (
@@ -43,6 +46,7 @@ export default function VerifierLogin() {
             value={code}
             onChange={e => setCode(e.target.value)}
             type="password"
+            autoComplete="current-password"
             className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 font-black outline-none focus:border-blue-800"
           />
         </label>

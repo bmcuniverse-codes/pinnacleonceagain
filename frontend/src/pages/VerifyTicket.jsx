@@ -4,6 +4,8 @@ import toast from 'react-hot-toast'
 import { CheckCircle2, XCircle, AlertTriangle, ShieldCheck } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
+const VERIFIER_STORAGE_KEY = 'votewave-verifier-code'
+
 export default function VerifyTicket() {
   const { code } = useParams()
   const navigate = useNavigate()
@@ -11,20 +13,23 @@ export default function VerifyTicket() {
   const [usingTicket, setUsingTicket] = useState(false)
   const [result, setResult] = useState(null)
 
-  const verifierCode = localStorage.getItem('votewave-verifier-code') || ''
+  const verifierCode = String(localStorage.getItem(VERIFIER_STORAGE_KEY) || '').trim()
 
   useEffect(() => {
     if (!verifierCode) {
-      navigate('/verifier/login')
+      navigate('/verifier/login', { replace: true })
       return
     }
+
     checkTicket()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code])
 
   async function callVerifier(action) {
+    const cleanTicketCode = String(code || '').trim()
+
     const { data, error } = await supabase.functions.invoke('verify-ticket', {
-      body: { ticket_code: code, action },
+      body: { ticket_code: cleanTicketCode, action },
       headers: { 'x-verifier-code': verifierCode },
     })
 

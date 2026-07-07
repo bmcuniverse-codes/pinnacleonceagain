@@ -1,11 +1,21 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { Search, ShieldCheck, LogOut } from 'lucide-react'
 
+const VERIFIER_STORAGE_KEY = 'votewave-verifier-code'
+
 export default function VerifierDashboard() {
   const [code, setCode] = useState('')
   const navigate = useNavigate()
+
+  useEffect(() => {
+    const verifierCode = localStorage.getItem(VERIFIER_STORAGE_KEY)
+
+    if (!verifierCode) {
+      navigate('/verifier/login', { replace: true })
+    }
+  }, [navigate])
 
   function openTicket(e) {
     e.preventDefault()
@@ -15,8 +25,8 @@ export default function VerifierDashboard() {
   }
 
   function logout() {
-    localStorage.removeItem('votewave-verifier-code')
-    navigate('/verifier/login')
+    localStorage.removeItem(VERIFIER_STORAGE_KEY)
+    navigate('/verifier/login', { replace: true })
   }
 
   return (
