@@ -87,6 +87,18 @@ export default function AdminDashboard() {
     total_votes: 0,
   })
 
+  const [combinedRevenueTotals, setCombinedRevenueTotals] = useState({
+    adjusted_vote_revenue: 0,
+    adjusted_total_votes: 0,
+    ticket_revenue: 0,
+    single_ticket_revenue: 0,
+    couple_ticket_revenue: 0,
+    single_ticket_count: 0,
+    couple_ticket_count: 0,
+    total_ticket_count: 0,
+    combined_total_revenue: 0,
+  })
+
   const [eventPaymentTotals, setEventPaymentTotals] = useState([])
 
   const [editingOrganization, setEditingOrganization] = useState(null)
@@ -190,7 +202,7 @@ const [bulkForm, setBulkForm] = useState({
   async function loadAll() {
     setLoading(true)
 
-    const [orgRes, eventRes, catRes, nomineeRes, nominationRes, txRes, totalsRes, eventTotalsRes, ticketRes, ticketSettingsRes] = await Promise.all([
+    const [orgRes, eventRes, catRes, nomineeRes, nominationRes, txRes, totalsRes, combinedTotalsRes, eventTotalsRes, ticketRes, ticketSettingsRes] = await Promise.all([
       supabase.from('organizations').select('*').order('created_at', { ascending: false }),
       supabase.from('events').select('*').order('created_at', { ascending: false }),
       supabase.from('categories').select('*').order('name'),
@@ -198,6 +210,7 @@ const [bulkForm, setBulkForm] = useState({
       supabase.from('nominations_public').select('*'),
       supabase.from('vote_transactions').select('*').order('created_at', { ascending: false }).limit(150),
       supabase.from('admin_payment_totals').select('*').single(),
+      supabase.from('admin_combined_revenue_totals').select('*').single(),
       supabase.from('admin_event_payment_totals').select('*'),
       supabase.from('tickets').select('*').order('created_at', { ascending: false }).limit(500),
       supabase.from('ticket_settings').select('*').eq('id', 1).maybeSingle(),
@@ -210,6 +223,7 @@ const [bulkForm, setBulkForm] = useState({
     if (nominationRes.error) toast.error(nominationRes.error.message)
     if (txRes.error) toast.error(txRes.error.message)
     if (totalsRes.error) toast.error(totalsRes.error.message)
+    if (combinedTotalsRes.error) toast.error(combinedTotalsRes.error.message)
     if (eventTotalsRes.error) toast.error(eventTotalsRes.error.message)
     if (ticketRes.error) toast.error(ticketRes.error.message)
     if (ticketSettingsRes.error) toast.error(ticketSettingsRes.error.message)
@@ -225,6 +239,17 @@ const [bulkForm, setBulkForm] = useState({
       total_revenue: 0,
       total_votes: 0,
     }
+    const combinedTotals = combinedTotalsRes.data || {
+      adjusted_vote_revenue: Number(totals.total_revenue || 0),
+      adjusted_total_votes: Number(totals.total_votes || 0),
+      ticket_revenue: 0,
+      single_ticket_revenue: 0,
+      couple_ticket_revenue: 0,
+      single_ticket_count: 0,
+      couple_ticket_count: 0,
+      total_ticket_count: 0,
+      combined_total_revenue: Number(totals.total_revenue || 0),
+    }
     const eventTotals = eventTotalsRes.data || []
     const ticketRows = ticketRes.data || []
     const settings = ticketSettingsRes.data || null
@@ -236,6 +261,7 @@ const [bulkForm, setBulkForm] = useState({
     setNominations(publicNoms)
     setTransactions(txs)
     setDashboardTotals(totals)
+    setCombinedRevenueTotals(combinedTotals)
     setEventPaymentTotals(eventTotals)
     setTickets(ticketRows)
     setTicketSettings(settings)
@@ -276,14 +302,21 @@ const [bulkForm, setBulkForm] = useState({
 
   const stats = useMemo(() => ({
     votes: Number(dashboardTotals.total_votes || 0),
-    revenue: Number(dashboardTotals.total_revenue || 0),
+    adjusted_vote_revenue: Number(combinedRevenueTotals.adjusted_vote_revenue ?? dashboardTotals.total_revenue ?? 0),
+    ticket_revenue: Number(combinedRevenueTotals.ticket_revenue || 0),
+    combined_revenue: Number(combinedRevenueTotals.combined_total_revenue ?? dashboardTotals.total_revenue ?? 0),
+    single_ticket_revenue: Number(combinedRevenueTotals.single_ticket_revenue || 0),
+    couple_ticket_revenue: Number(combinedRevenueTotals.couple_ticket_revenue || 0),
+    single_ticket_count: Number(combinedRevenueTotals.single_ticket_count || 0),
+    couple_ticket_count: Number(combinedRevenueTotals.couple_ticket_count || 0),
+    total_ticket_count: Number(combinedRevenueTotals.total_ticket_count || 0),
     successful_transactions: Number(dashboardTotals.successful_transactions || 0),
     organizations: organizations.length,
     events: events.length,
     nominees: nominees.length,
     categories: categories.length,
     nominations: nominations.length,
-  }), [dashboardTotals, organizations, events, nominees, categories, nominations])
+  }), [dashboardTotals, combinedRevenueTotals, organizations, events, nominees, categories, nominations])
 
   const eventStats = useMemo(() => {
     return events.map(event => {
@@ -358,6 +391,8 @@ const categoryLeaders = useMemo(() => {
       cancelled: tickets.filter(ticket => ticket.ticket_status === 'cancelled').length,
       manual: paidTickets.filter(ticket => ['complimentary', 'guest', 'staff'].includes(ticket.ticket_source)).length,
       revenue: paidTickets.reduce((sum, ticket) => sum + Number(ticket.amount || 0), 0),
+      single_revenue: paidTickets.filter(ticket => ticket.ticket_type === 'single').reduce((sum, ticket) => sum + Number(ticket.amount || 0), 0),
+      couple_revenue: paidTickets.filter(ticket => ticket.ticket_type === 'couple').reduce((sum, ticket) => sum + Number(ticket.amount || 0), 0),
       early: paidTickets.filter(ticket => ticket.ticket_phase === 'early_bird').length,
       regular: paidTickets.filter(ticket => ticket.ticket_phase === 'regular').length,
       single: paidTickets.filter(ticket => ticket.ticket_type === 'single').length,
@@ -1484,14 +1519,15 @@ async function resetEventData(event) {
 function Overview({ stats, eventStats, setActive }) {
   return (
     <section className="space-y-6">
-      <div className="grid sm:grid-cols-2 xl:grid-cols-7 gap-4">
+      <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <Stat title="Total Revenue" value={currency(stats.combined_revenue)} />
+        <Stat title="Vote Revenue" value={currency(stats.adjusted_vote_revenue)} />
+        <Stat title="Ticket Revenue" value={currency(stats.ticket_revenue)} />
         <Stat title="Votes" value={stats.votes} />
-        <Stat title="Revenue" value={currency(stats.revenue)} />
-        <Stat title="Organizations" value={stats.organizations} />
-        <Stat title="Events" value={stats.events} />
+        <Stat title="Single Tickets" value={`${stats.single_ticket_count} • ${currency(stats.single_ticket_revenue)}`} />
+        <Stat title="Couple Tickets" value={`${stats.couple_ticket_count} • ${currency(stats.couple_ticket_revenue)}`} />
         <Stat title="Categories" value={stats.categories} />
         <Stat title="Nominees" value={stats.nominees} />
-        <Stat title="Nominations" value={stats.nominations} />
       </div>
 
       <Panel title="Quick Actions">
@@ -1879,9 +1915,11 @@ function TicketsTab({
 }) {
   return (
     <section className="space-y-6">
-      <div className="grid sm:grid-cols-2 xl:grid-cols-6 gap-4">
+      <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <Stat title="Paid Tickets" value={ticketStats.paid} />
         <Stat title="Ticket Revenue" value={currency(ticketStats.revenue)} />
+        <Stat title="Single Tickets" value={`${ticketStats.single} • ${currency(ticketStats.single_revenue)}`} />
+        <Stat title="Couple Tickets" value={`${ticketStats.couple} • ${currency(ticketStats.couple_revenue)}`} />
         <Stat title="Valid Unused" value={ticketStats.unused} />
         <Stat title="Used Tickets" value={ticketStats.used} />
         <Stat title="Manual Tickets" value={ticketStats.manual} />
