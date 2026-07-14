@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, Outlet } from 'react-router-dom'
 import Footer from '../components/ui/Footer'
+import { supabase } from '../lib/supabase'
 import { Home, Trophy, Vote, BarChart3, Menu, Moon, Sun, X } from 'lucide-react'
 
 const navLink = ({ isActive }) =>
@@ -30,6 +31,31 @@ export default function PublicLayout() {
   })
 
   const [menuOpen, setMenuOpen] = useState(false)
+  const [leaderboardVisible, setLeaderboardVisible] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadDisplaySettings() {
+      const { data, error } = await supabase
+        .from('display_settings')
+        .select('leaderboard_visible')
+        .eq('id', 1)
+        .maybeSingle()
+
+      if (!cancelled && !error) {
+        setLeaderboardVisible(data?.leaderboard_visible !== false)
+      }
+    }
+
+    loadDisplaySettings()
+    const interval = window.setInterval(loadDisplaySettings, 10000)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(interval)
+    }
+  }, [])
 
   useEffect(() => {
     if (darkMode) {
@@ -63,7 +89,7 @@ export default function PublicLayout() {
           <nav className="hidden md:flex items-center gap-8">
             <NavLink to="/" className={navLink}>Home</NavLink>
             <NavLink to="/events" className={navLink}>Events</NavLink>
-            <NavLink to="/leaderboard" className={navLink}>Leaderboard</NavLink>
+            {leaderboardVisible && <NavLink to="/leaderboard" className={navLink}>Leaderboard</NavLink>}
             <NavLink to="/admin/login" className={navLink}>Admin</NavLink>
           </nav>
 
@@ -98,7 +124,7 @@ export default function PublicLayout() {
             <nav className="space-y-2 pt-4">
               <NavLink onClick={() => setMenuOpen(false)} to="/" className={mobileLink}>Home</NavLink>
               <NavLink onClick={() => setMenuOpen(false)} to="/events" className={mobileLink}>Events</NavLink>
-              <NavLink onClick={() => setMenuOpen(false)} to="/leaderboard" className={mobileLink}>Leaderboard</NavLink>
+              {leaderboardVisible && <NavLink onClick={() => setMenuOpen(false)} to="/leaderboard" className={mobileLink}>Leaderboard</NavLink>}
               <NavLink onClick={() => setMenuOpen(false)} to="/admin/login" className={mobileLink}>Admin Login</NavLink>
             </nav>
           </div>
@@ -112,7 +138,7 @@ export default function PublicLayout() {
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-[#061425] border-t border-slate-200 dark:border-white/10 safe-bottom px-6 pt-3 flex justify-between shadow-2xl">
         <NavLink to="/" className={bottomItem}><Home size={21}/>Home</NavLink>
         <NavLink to="/events" className={bottomItem}><Trophy size={21}/>Events</NavLink>
-        <NavLink to="/leaderboard" className={bottomItem}><BarChart3 size={21}/>Board</NavLink>
+        {leaderboardVisible && <NavLink to="/leaderboard" className={bottomItem}><BarChart3 size={21}/>Board</NavLink>}
         <NavLink to="/admin/login" className={bottomItem}><Vote size={21}/>Admin</NavLink>
       </nav>
    
