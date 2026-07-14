@@ -21,6 +21,7 @@ import {
   Crown,
   Download,
   Ticket,
+  Eye,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { currency, slugify } from '../../lib/helpers'
@@ -43,6 +44,7 @@ const tabs = [
   ['leaders', Crown, 'Leaders'],
   ['payments', CreditCard, 'Payments'],
   ['tickets', Ticket, 'Tickets'],
+  ['display', Eye, 'Display Control'],
 ]
 
 export default function AdminDashboard() {
@@ -97,6 +99,15 @@ export default function AdminDashboard() {
     couple_ticket_count: 0,
     total_ticket_count: 0,
     combined_total_revenue: 0,
+  })
+
+
+  const [displaySettings, setDisplaySettings] = useState(null)
+  const [displaySettingsForm, setDisplaySettingsForm] = useState({
+    manual_total_votes: 0,
+    manual_vote_revenue: 0,
+    use_manual_vote_totals: false,
+    leaderboard_visible: true,
   })
 
   const [eventPaymentTotals, setEventPaymentTotals] = useState([])
@@ -202,7 +213,7 @@ const [bulkForm, setBulkForm] = useState({
   async function loadAll() {
     setLoading(true)
 
-    const [orgRes, eventRes, catRes, nomineeRes, nominationRes, txRes, totalsRes, combinedTotalsRes, eventTotalsRes, ticketRes, ticketSettingsRes] = await Promise.all([
+    const [orgRes, eventRes, catRes, nomineeRes, nominationRes, txRes, totalsRes, combinedTotalsRes, eventTotalsRes, ticketRes, ticketSettingsRes, displaySettingsRes] = await Promise.all([
       supabase.from('organizations').select('*').order('created_at', { ascending: false }),
       supabase.from('events').select('*').order('created_at', { ascending: false }),
       supabase.from('categories').select('*').order('name'),
@@ -214,6 +225,7 @@ const [bulkForm, setBulkForm] = useState({
       supabase.from('admin_event_payment_totals').select('*'),
       supabase.from('tickets').select('*').order('created_at', { ascending: false }).limit(500),
       supabase.from('ticket_settings').select('*').eq('id', 1).maybeSingle(),
+      supabase.from('display_settings').select('*').eq('id', 1).maybeSingle(),
     ])
 
     if (orgRes.error) toast.error(orgRes.error.message)
@@ -227,6 +239,7 @@ const [bulkForm, setBulkForm] = useState({
     if (eventTotalsRes.error) toast.error(eventTotalsRes.error.message)
     if (ticketRes.error) toast.error(ticketRes.error.message)
     if (ticketSettingsRes.error) toast.error(ticketSettingsRes.error.message)
+    if (displaySettingsRes.error) toast.error(displaySettingsRes.error.message)
 
     const orgs = orgRes.data || []
     const evs = eventRes.data || []
@@ -253,6 +266,7 @@ const [bulkForm, setBulkForm] = useState({
     const eventTotals = eventTotalsRes.data || []
     const ticketRows = ticketRes.data || []
     const settings = ticketSettingsRes.data || null
+    const displaySettingsRow = displaySettingsRes.data || null
 
     setOrganizations(orgs)
     setEvents(evs)
@@ -265,6 +279,16 @@ const [bulkForm, setBulkForm] = useState({
     setEventPaymentTotals(eventTotals)
     setTickets(ticketRows)
     setTicketSettings(settings)
+    setDisplaySettings(displaySettingsRow)
+
+    if (displaySettingsRow) {
+      setDisplaySettingsForm({
+        manual_total_votes: Number(displaySettingsRow.manual_total_votes || 0),
+        manual_vote_revenue: Number(displaySettingsRow.manual_vote_revenue || 0),
+        use_manual_vote_totals: Boolean(displaySettingsRow.use_manual_vote_totals),
+        leaderboard_visible: displaySettingsRow.leaderboard_visible !== false,
+      })
+    }
 
     if (settings) {
       setTicketSettingsForm({
@@ -301,7 +325,7 @@ const [bulkForm, setBulkForm] = useState({
   const successfulTx = transactions.filter(t => t.payment_status === 'success')
 
   const stats = useMemo(() => ({
-    votes: Number(dashboardTotals.total_votes || 0),
+    votes: Number(combinedRevenueTotals.adjusted_total_votes ?? dashboardTotals.total_votes ?? 0),
     adjusted_vote_revenue: Number(combinedRevenueTotals.adjusted_vote_revenue ?? dashboardTotals.total_revenue ?? 0),
     ticket_revenue: Number(combinedRevenueTotals.ticket_revenue || 0),
     combined_revenue: Number(combinedRevenueTotals.combined_total_revenue ?? dashboardTotals.total_revenue ?? 0),
@@ -1285,6 +1309,35 @@ async function resetEventData(event) {
     toast.success('Ticket verification link copied')
   }
 
+  async function updateDisplaySettings(e) {
+    e.preventDefault()
+    setSaving(true)
+
+    try {
+      const payload = {
+        id: 1,
+        manual_total_votes: Number(displaySettingsForm.manual_total_votes || 0),
+        manual_vote_revenue: Number(displaySettingsForm.manual_vote_revenue || 0),
+        use_manual_vote_totals: Boolean(displaySettingsForm.use_manual_vote_totals),
+        leaderboard_visible: Boolean(displaySettingsForm.leaderboard_visible),
+        updated_at: new Date().toISOString(),
+      }
+
+      const { error } = await supabase
+        .from('display_settings')
+        .upsert(payload, { onConflict: 'id' })
+
+      if (error) throw error
+
+      toast.success('Display settings updated')
+      loadAll()
+    } catch (error) {
+      toast.error(error.message || 'Could not update display settings')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900">
       <div className="grid lg:grid-cols-[280px_1fr]">
@@ -1434,6 +1487,7 @@ async function resetEventData(event) {
   </section>
 )}
           {active === 'payments' && <PaymentsTab transactions={transactions} />}
+          {active === 'display' && <DisplayControlTab displaySettings={displaySettings} displaySettingsForm={displaySettingsForm} setDisplaySettingsForm={setDisplaySettingsForm} updateDisplaySettings={updateDisplaySettings} saving={saving} />}
           {active === 'tickets' && <TicketsTab tickets={tickets} ticketStats={ticketStats} ticketSettingsForm={ticketSettingsForm} setTicketSettingsForm={setTicketSettingsForm} manualTicketForm={manualTicketForm} setManualTicketForm={setManualTicketForm} updateTicketSettings={updateTicketSettings} createManualTicket={createManualTicket} exportTicketsReport={exportTicketsReport} setEditingTicket={setEditingTicket} updateTicketStatus={updateTicketStatus} copyTicketLink={copyTicketLink} saving={saving} />}
         </main>
       </div>
@@ -1893,6 +1947,62 @@ function NominationsTab({
             </IconButton>
           </>
         )} />
+      </Panel>
+    </section>
+  )
+}
+
+
+function DisplayControlTab({ displaySettings, displaySettingsForm, setDisplaySettingsForm, updateDisplaySettings, saving }) {
+  return (
+    <section className="space-y-6">
+      <Panel title="Manual Vote & Leaderboard Control">
+        <form onSubmit={updateDisplaySettings} className="space-y-5">
+          <div className="grid md:grid-cols-2 gap-4">
+            <Toggle
+              label="Use Manual Vote Totals"
+              checked={displaySettingsForm.use_manual_vote_totals}
+              onChange={v => setDisplaySettingsForm({ ...displaySettingsForm, use_manual_vote_totals: v })}
+            />
+
+            <Toggle
+              label="Show Leaderboard Publicly"
+              checked={displaySettingsForm.leaderboard_visible}
+              onChange={v => setDisplaySettingsForm({ ...displaySettingsForm, leaderboard_visible: v })}
+            />
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-4">
+            <Input
+              label="Manual Total Votes"
+              type="number"
+              value={displaySettingsForm.manual_total_votes}
+              onChange={v => setDisplaySettingsForm({ ...displaySettingsForm, manual_total_votes: v })}
+            />
+
+            <Input
+              label="Manual Vote Revenue"
+              type="number"
+              value={displaySettingsForm.manual_vote_revenue}
+              onChange={v => setDisplaySettingsForm({ ...displaySettingsForm, manual_vote_revenue: v })}
+            />
+          </div>
+
+          <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm font-bold text-blue-900">
+            When manual vote totals are enabled, the dashboard/committee revenue view will use your manual vote count and vote revenue, then add ticket revenue automatically. When leaderboard visibility is off, public leaderboard sections and links are hidden.
+          </div>
+
+          <Submit disabled={saving}>Save Display Settings</Submit>
+        </form>
+      </Panel>
+
+      <Panel title="Current Display Status">
+        <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          <Stat title="Manual Mode" value={displaySettingsForm.use_manual_vote_totals ? 'On' : 'Off'} />
+          <Stat title="Leaderboard" value={displaySettingsForm.leaderboard_visible ? 'Visible' : 'Hidden'} />
+          <Stat title="Manual Votes" value={Number(displaySettingsForm.manual_total_votes || 0).toLocaleString()} />
+          <Stat title="Manual Vote Revenue" value={currency(displaySettingsForm.manual_vote_revenue || 0)} />
+        </div>
       </Panel>
     </section>
   )
