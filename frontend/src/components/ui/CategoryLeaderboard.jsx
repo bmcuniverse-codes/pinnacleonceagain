@@ -4,6 +4,18 @@ import { supabase } from '../../lib/supabase'
 import { percent } from '../../lib/helpers'
 import MovingProgressBar from './MovingProgressBar'
 
+
+async function getDisplaySettings() {
+  const { data, error } = await supabase
+    .from('display_settings')
+    .select('*')
+    .eq('id', 1)
+    .maybeSingle()
+
+  if (error) throw error
+  return data
+}
+
 async function getCategoryLeaderboard(categoryId) {
   if (!categoryId) return []
 
@@ -33,12 +45,22 @@ async function getCategoryLeaderboard(categoryId) {
 }
 
 export default function CategoryLeaderboard({ categoryId, categoryName }) {
+  const { data: displaySettings, isLoading: displayLoading } = useQuery({
+    queryKey: ['display-settings-category-leaderboard'],
+    queryFn: getDisplaySettings,
+    refetchInterval: 10000,
+  })
+
+  const leaderboardVisible = displaySettings?.leaderboard_visible !== false
+
   const { data = [], isLoading } = useQuery({
     queryKey: ['category-leaderboard', categoryId],
     queryFn: () => getCategoryLeaderboard(categoryId),
     enabled: Boolean(categoryId),
     refetchInterval: 15000,
   })
+
+  if (!displayLoading && !leaderboardVisible) return null
 
   return (
     <section className="mt-12 rounded-[2rem] bg-white dark:bg-white/10 border border-slate-200 dark:border-white/10 p-5 sm:p-7 shadow-xl">
