@@ -90,7 +90,6 @@ export default function PublicLayout() {
             <NavLink to="/" className={navLink}>Home</NavLink>
             <NavLink to="/events" className={navLink}>Events</NavLink>
             {leaderboardVisible && <NavLink to="/leaderboard" className={navLink}>Leaderboard</NavLink>}
-            <NavLink to="/admin/login" className={navLink}>Admin</NavLink>
           </nav>
 
           <div className="flex items-center gap-2 sm:gap-3">
@@ -125,7 +124,6 @@ export default function PublicLayout() {
               <NavLink onClick={() => setMenuOpen(false)} to="/" className={mobileLink}>Home</NavLink>
               <NavLink onClick={() => setMenuOpen(false)} to="/events" className={mobileLink}>Events</NavLink>
               {leaderboardVisible && <NavLink onClick={() => setMenuOpen(false)} to="/leaderboard" className={mobileLink}>Leaderboard</NavLink>}
-              <NavLink onClick={() => setMenuOpen(false)} to="/admin/login" className={mobileLink}>Admin Login</NavLink>
             </nav>
           </div>
         )}
@@ -139,7 +137,6 @@ export default function PublicLayout() {
         <NavLink to="/" className={bottomItem}><Home size={21}/>Home</NavLink>
         <NavLink to="/events" className={bottomItem}><Trophy size={21}/>Events</NavLink>
         {leaderboardVisible && <NavLink to="/leaderboard" className={bottomItem}><BarChart3 size={21}/>Board</NavLink>}
-        <NavLink to="/admin/login" className={bottomItem}><Vote size={21}/>Admin</NavLink>
       </nav>
    
     </div>
