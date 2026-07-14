@@ -48,12 +48,10 @@ export default function Footer() {
                 Leaderboard
               </Link>
 
-              <Link
-                className="block hover:text-blue-800 dark:hover:text-yellow-300"
-                to="/admin/login"
-              >
-                Admin Login
-              </Link>
+
+
+
+              
             </div>
           </div>
 
