@@ -8,6 +8,18 @@ import { percent } from '../../lib/helpers'
 import Section from '../ui/Section'
 import MovingProgressBar from '../ui/MovingProgressBar'
 
+
+async function getDisplaySettings() {
+  const { data, error } = await supabase
+    .from('display_settings')
+    .select('*')
+    .eq('id', 1)
+    .maybeSingle()
+
+  if (error) throw error
+  return data
+}
+
 async function getLeaderboardPreview() {
   const { data, error } = await supabase
     .from('nominations_public')
@@ -37,11 +49,21 @@ async function getLeaderboardPreview() {
 }
 
 export default function LeaderboardPreviewSection() {
+  const { data: displaySettings, isLoading: displayLoading } = useQuery({
+    queryKey: ['display-settings-leaderboard-preview'],
+    queryFn: getDisplaySettings,
+    refetchInterval: 10000,
+  })
+
+  const leaderboardVisible = displaySettings?.leaderboard_visible !== false
+
   const { data = [], isLoading } = useQuery({
     queryKey: ['homepage-leaderboard'],
     queryFn: getLeaderboardPreview,
     refetchInterval: 15000,
   })
+
+  if (!displayLoading && !leaderboardVisible) return null
 
   return (
     <Section
