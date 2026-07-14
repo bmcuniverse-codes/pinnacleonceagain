@@ -7,6 +7,18 @@ import PageHeader from '../components/ui/PageHeader'
 import EmptyState from '../components/ui/EmptyState'
 import MovingProgressBar from '../components/ui/MovingProgressBar'
 
+
+async function getDisplaySettings() {
+  const { data, error } = await supabase
+    .from('display_settings')
+    .select('*')
+    .eq('id', 1)
+    .maybeSingle()
+
+  if (error) throw error
+  return data
+}
+
 async function getLeaderboardData() {
   const [nominationRes, categoryRes] = await Promise.all([
     supabase
@@ -32,6 +44,14 @@ async function getLeaderboardData() {
 
 export default function Leaderboard() {
   const [selectedCategory, setSelectedCategory] = useState('all')
+
+  const { data: displaySettings, isLoading: displayLoading } = useQuery({
+    queryKey: ['display-settings-leaderboard'],
+    queryFn: getDisplaySettings,
+    refetchInterval: 10000,
+  })
+
+  const leaderboardVisible = displaySettings?.leaderboard_visible !== false
 
   const { data, isLoading } = useQuery({
     queryKey: ['leaderboard-with-filter'],
@@ -69,6 +89,23 @@ export default function Leaderboard() {
     selectedCategory === 'all'
       ? 'All Categories'
       : categories.find(cat => cat.id === selectedCategory)?.name || 'Category'
+
+  if (!displayLoading && !leaderboardVisible) {
+    return (
+      <div className="space-y-8">
+        <PageHeader
+          eyebrow="Leaderboard"
+          title="Leaderboard temporarily hidden"
+          description="The organizers have temporarily hidden live standings. Please check back later."
+        />
+        <EmptyState
+          icon={BarChart3}
+          title="Leaderboard is currently hidden"
+          description="Voting progress is being reviewed by the organizers and may be shown again later."
+        />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-8">
