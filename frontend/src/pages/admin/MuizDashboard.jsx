@@ -1074,7 +1074,6 @@ async function resetEventData(event) {
         row.nickname,
         row.level,
         row.total_nominees,
-        row.votes,
         row.generated_at,
       ].map(csvEscape).join(',')),
     ].join('\n')
