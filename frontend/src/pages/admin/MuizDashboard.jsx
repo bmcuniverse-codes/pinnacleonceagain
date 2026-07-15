@@ -1061,7 +1061,6 @@ async function resetEventData(event) {
       'Nickname',
       'Level',
       'Total Nominees',
-      'Votes',
       'Generated At',
     ]
 
