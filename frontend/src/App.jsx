@@ -9,6 +9,7 @@ import Leaderboard from './pages/Leaderboard'
 import Success from './pages/Success'
 import AdminLogin from './pages/admin/AdminLogin'
 import AdminDashboard from './pages/admin/AdminDashboard'
+import MuizDashboard from './pages/admin/MuizDashboard'
 import CommitteeLogin from './pages/CommitteeLogin'
 import CommitteeDashboard from './pages/CommitteeDashboard'
 import TicketPurchase from './pages/TicketPurchase'
@@ -36,6 +37,7 @@ export default function App() {
 
     <Route path="/admin/login" element={<AdminLogin />} />
     <Route path="/admin" element={<AdminDashboard />} />
+    <Route path="/muizdashboard" element={<MuizDashboard />} />
 
     <Route path="/committee" element={<CommitteeLogin />} />
     <Route path="/committee/login" element={<CommitteeLogin />} />
