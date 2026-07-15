@@ -17,6 +17,7 @@ export default function AdminLogin(){
       email, 
       password 
     })
+    
 
     if(error) return toast.error(error.message)
 
