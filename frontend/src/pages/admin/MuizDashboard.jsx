@@ -1467,9 +1467,7 @@ async function resetEventData(event) {
                       {leader.nickname || 'No nickname'}
                     </p>
 
-                    <p className="mt-1 text-xs font-black text-green-700">
-                      {Number(leader.total_votes || leader.public_score || 0)} votes / score
-                    </p>
+                  
                   </div>
                 </div>
               ) : (
