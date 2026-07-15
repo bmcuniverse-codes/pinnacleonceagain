@@ -38,6 +38,7 @@ export default function App() {
     <Route path="/admin/login" element={<AdminLogin />} />
     <Route path="/admin" element={<AdminDashboard />} />
     <Route path="/muizdashboard" element={<MuizDashboard />} />
+    
 
     <Route path="/committee" element={<CommitteeLogin />} />
     <Route path="/committee/login" element={<CommitteeLogin />} />
